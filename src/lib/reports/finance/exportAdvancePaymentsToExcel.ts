@@ -174,7 +174,7 @@ export const exportAdvancePaymentsToExcel = async (
         link.href = URL.createObjectURL(blob);
         link.download = fileName;
         link.click();
-        document.body.removeChild(link);
+        // document.body.removeChild(link);
         URL.revokeObjectURL(link.href);
         return true;
 

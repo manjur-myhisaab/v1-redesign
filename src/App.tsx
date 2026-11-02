@@ -23,6 +23,7 @@ const EmployeeCategory = lazy(() => import('./pages/admin/EmployeeCategory'))
 const Organization = lazy(() => import('./pages/admin/Organization'))
 const Attendance = lazy(() => import('./pages/admin/Attendance'))
 const Roster = lazy(() => import('./pages/admin/Roster'))
+const MonthlyRoster = lazy(() => import('./pages/admin/monthly-roster/MonthlyRoster'))
 const Payroll = lazy(() => import('./pages/admin/Payroll'))
 const PayrollTemplates = lazy(() => import('./pages/admin/PayrollTemplates'))
 const EditPayrollTemplate = lazy(() => import('./pages/admin/EditPayrollTemplate'))
@@ -41,7 +42,7 @@ const Documents = lazy(() => import('./pages/admin/Documents'))
 const Assets = lazy(() => import('./pages/admin/Assets'))
 const Helpdesk = lazy(() => import('./pages/admin/Helpdesk'))
 const Performance = lazy(() => import('./pages/admin/Performance'))
-const Tracking = lazy(() => import('./pages/admin/Tracking'))
+const Tracking = lazy(() => import('./pages/admin/tracking/RealtimeTracking'))
 const LiveTrackingTimeline = lazy(() => import('./pages/admin/LiveTrackingTimeline'))
 const Reports = lazy(() => import('./pages/admin/Reports'))
 const ReportViewer = lazy(() => import('./pages/admin/ReportViewer'))
@@ -109,10 +110,13 @@ function App() {
                 <Route path="employees/:id/edit" element={<EmployeeForm />} />
                 <Route path="organization" element={<Organization />} />
                 <Route path="attendance" element={<Attendance />} />
-                <Route path="roster" element={<Roster />} />
+                <Route path="roster" element={<MonthlyRoster />} />
+                <Route path="monthly-roster" element={<MonthlyRoster />} />
+                <Route path="weekly-roster" element={<Roster />} />
                 <Route path="leave" element={<Leave />} />
                 <Route path="tracking" element={<Tracking />} />
-                <Route path="tracking/timeline" element={<LiveTrackingTimeline />} />
+                <Route path="timeline" element={<LiveTrackingTimeline />} />
+                <Route path="tracking/timeline" element={<Navigate to="/admin/timeline" replace />} />
                 <Route path="tasks" element={<Tasks />} />
                 <Route path="visits" element={<Visits />} />
                 <Route path="clients" element={<Clients />} />
@@ -156,7 +160,7 @@ function App() {
               <Route path="/attendance/payroll/templates" element={<Navigate to="/admin/payroll/templates" replace />} />
               <Route path="/attendance/payroll/templates/:id" element={<Navigate to="/admin/payroll/templates/:id" replace />} />
               <Route path="/attendance/live-tracking" element={<Navigate to="/admin/tracking" replace />} />
-              <Route path="/attendance/live-tracking/timeline" element={<Navigate to="/admin/tracking/timeline" replace />} />
+              <Route path="/attendance/live-tracking/timeline" element={<Navigate to="/admin/timeline" replace />} />
               <Route path="/attendance/works" element={<Navigate to="/admin/tasks" replace />} />
               <Route path="/attendance/visits" element={<Navigate to="/admin/visits" replace />} />
               <Route path="/attendance/clients" element={<Navigate to="/admin/clients" replace />} />

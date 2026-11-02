@@ -219,7 +219,7 @@ export const exportExpensesToExcel = async (
         link.download = fileName;
         document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
+        // document.body.removeChild(link);
         URL.revokeObjectURL(link.href);
         return true;
     } catch (error) {

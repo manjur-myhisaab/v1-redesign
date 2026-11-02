@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth/AuthContext'
 import axios from 'axios'
-import rdk, { readItems, customEndpoint, ATTENDANCE_SERVER_URL } from '@/services/server'
+import rdk, { readItems, readItem, getCurrentUser, customEndpoint, ATTENDANCE_SERVER_URL } from '@/services/server'
 
 // Reports config & components
 import { REPORTS_CONFIG, REPORT_CATEGORIES } from './reports/config/reportsConfig'
@@ -333,11 +333,63 @@ export default function Reports() {
       const rawFirm = (user as any)?.firm_id
       const firmId = typeof rawFirm === 'object' ? (rawFirm?.firm_id || '') : (rawFirm || '')
       const activeFirmName = (typeof rawFirm === 'object' ? rawFirm?.firm_name : null) || user?.firm_name || firmName || 'MyHisaab'
-      const firmPaidLogo = (typeof rawFirm === 'object' ? rawFirm?.firm_paid_logo : null) || (user as any)?.firm_paid_logo || ''
+      let firmPaidLogo = (typeof rawFirm === 'object' ? rawFirm?.firm_paid_logo : null) || (user as any)?.firm_paid_logo || ''
+      let firmAddress = (typeof rawFirm === 'object' ? rawFirm?.firm_address : null) || (user as any)?.firm_address || ''
+
+      // Fetch firm details if missing logo or address
+      if (!firmAddress || !firmPaidLogo) {
+        try {
+          const stored = localStorage.getItem('userData')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            const f = parsed?.firm_id
+            if (f && typeof f === 'object') {
+              firmAddress = firmAddress || f.firm_address || ''
+              firmPaidLogo = firmPaidLogo || f.firm_paid_logo || ''
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (!firmAddress || !firmPaidLogo) {
+        try {
+          const stored = localStorage.getItem('mh.user')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            const f = parsed?.firm_id
+            if (f && typeof f === 'object') {
+              firmAddress = firmAddress || f.firm_address || ''
+              firmPaidLogo = firmPaidLogo || f.firm_paid_logo || ''
+            } else {
+              firmAddress = firmAddress || parsed.firm_address || ''
+              firmPaidLogo = firmPaidLogo || parsed.firm_paid_logo || ''
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (firmId && (!firmAddress || !firmPaidLogo)) {
+        try {
+          const firmData: any = await rdk.request(readItem('firm' as any, firmId))
+          if (firmData) {
+            firmAddress = firmAddress || firmData.firm_address || ''
+            firmPaidLogo = firmPaidLogo || firmData.firm_paid_logo || ''
+          }
+        } catch (e) {
+          try {
+            const curUser = await getCurrentUser()
+            if (curUser?.firm_id && typeof curUser.firm_id === 'object') {
+              firmAddress = firmAddress || curUser.firm_id.firm_address || ''
+              firmPaidLogo = firmPaidLogo || curUser.firm_id.firm_paid_logo || ''
+            }
+          } catch (e2) {}
+        }
+      }
 
       const firmDetails = {
         firm_id: firmId,
         firm_name: activeFirmName,
+        firm_address: firmAddress,
         firm_paid_logo: firmPaidLogo,
       }
 
@@ -839,9 +891,11 @@ export default function Reports() {
           employees,
           month,
           year,
-          user,
+          user: userObj,
           firmId,
           firmName: activeFirmName,
+          firmAddress,
+          firmPaidLogo,
           selectedEmployeeIds,
           onProgress: (prog, name) => {
             setZipProgress(prog)

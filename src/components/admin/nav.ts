@@ -70,7 +70,7 @@ export const NAV_GROUPS: NavGroup[] = [
     badge: 'BETA',
     items: [
       { to: '/admin/tracking', label: 'Realtime', icon: MapPin },
-      { to: '/admin/tracking/timeline', label: 'Timeline', icon: History },
+      { to: '/admin/timeline', label: 'Timeline', icon: History },
     ],
   },
   {
@@ -86,7 +86,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '',
     items: [
       { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
-      { to: '/admin/roster', label: 'Monthly Roster', icon: CalendarRange },
+      { to: '/admin/monthly-roster', label: 'Monthly Roster', icon: CalendarRange },
     ],
   },
 ]
@@ -135,8 +135,8 @@ export function navMeta(path: string): NavItem | undefined {
   if (path === '/admin/tracking' || path === '/attendance/live-tracking') {
     return { to: '/admin/tracking', label: 'Live Tracking', icon: MapPin }
   }
-  if (path === '/admin/tracking/timeline' || path === '/attendance/live-tracking/timeline') {
-    return { to: '/admin/tracking/timeline', label: 'Tracking Timeline', icon: History }
+  if (path === '/admin/timeline' || path === '/admin/tracking/timeline' || path === '/attendance/live-tracking/timeline') {
+    return { to: '/admin/timeline', label: 'Tracking Timeline', icon: History }
   }
   if (path === '/admin/tasks' || path === '/attendance/works') {
     return { to: '/admin/tasks', label: 'Tasks', icon: CheckSquare }
@@ -147,8 +147,8 @@ export function navMeta(path: string): NavItem | undefined {
   if (path === '/admin/clients' || path === '/attendance/clients') {
     return { to: '/admin/clients', label: 'Clients', icon: Building2 }
   }
-  if (path === '/admin/roster' || path === '/attendance/roaster') {
-    return { to: '/admin/roster', label: 'Monthly Roster', icon: CalendarRange }
+  if (path === '/admin/monthly-roster' || path === '/admin/roster' || path === '/attendance/roaster') {
+    return { to: '/admin/monthly-roster', label: 'Monthly Roster', icon: CalendarRange }
   }
   if (path === '/admin/reports' || path === '/attendance/reports') {
     return { to: '/admin/reports', label: 'Reports', icon: BarChart3 }
