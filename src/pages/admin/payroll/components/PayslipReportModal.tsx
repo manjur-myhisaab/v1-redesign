@@ -530,7 +530,7 @@ export default function PayslipReportModal({
             )}
 
             {selectionMode === 'singleDate' && (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 min-w-0">
                 <label className="text-xs font-bold text-foreground tracking-wide uppercase">
                   Select Date
                 </label>
@@ -544,13 +544,14 @@ export default function PayslipReportModal({
                       setSingleDate(`${y}-${m}-${d}`)
                     }
                   }}
-                  className="w-full h-9 text-xs"
+                  format="medium"
+                  className="w-full h-8 text-xs px-2.5"
                 />
               </div>
             )}
 
             {selectionMode === 'weekly' && (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 min-w-0">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-foreground tracking-wide uppercase">
                     Select Range (Max 7 Days)
@@ -559,8 +560,8 @@ export default function PayslipReportModal({
                     Max 7 days
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
+                <div className="grid grid-cols-2 gap-2 min-w-0">
+                  <div className="min-w-0 flex flex-col">
                     <span className="text-[10px] text-muted-foreground block mb-1">From</span>
                     <DatePicker
                       value={weeklyRange.start ? new Date(`${weeklyRange.start}T00:00:00`) : undefined}
@@ -572,10 +573,11 @@ export default function PayslipReportModal({
                           handleWeeklyChange('start', `${y}-${m}-${d}`)
                         }
                       }}
-                      className="w-full h-9 text-xs"
+                      format="medium"
+                      className="w-full h-8 text-xs px-2"
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex flex-col">
                     <span className="text-[10px] text-muted-foreground block mb-1">To</span>
                     <DatePicker
                       value={weeklyRange.end ? new Date(`${weeklyRange.end}T00:00:00`) : undefined}
@@ -587,7 +589,8 @@ export default function PayslipReportModal({
                           handleWeeklyChange('end', `${y}-${m}-${d}`)
                         }
                       }}
-                      className="w-full h-9 text-xs"
+                      format="medium"
+                      className="w-full h-8 text-xs px-2"
                     />
                   </div>
                 </div>

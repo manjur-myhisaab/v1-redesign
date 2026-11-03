@@ -17,7 +17,9 @@ const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Onboarding = lazy(() => import('./pages/admin/Onboarding'))
 const Staff = lazy(() => import('./pages/admin/Staff'))
 const Employees = lazy(() => import('./pages/admin/Employees'))
-const EmployeeDetails = lazy(() => import('./pages/admin/EmployeeDetails'))
+const EmployeeDetails = lazy(() => import('./pages/admin/staff-profile/StaffProfile'))
+const StaffProfile = lazy(() => import('./pages/admin/staff-profile/StaffProfile'))
+const StaffForm = lazy(() => import('./pages/admin/StaffForm'))
 const EmployeeForm = lazy(() => import('./pages/admin/EmployeeForm'))
 const EmployeeCategory = lazy(() => import('./pages/admin/EmployeeCategory'))
 const Organization = lazy(() => import('./pages/admin/Organization'))
@@ -105,10 +107,13 @@ function App() {
                 <Route path="staff/category" element={<Navigate to="/admin/category" replace />} />
                 <Route path="new" element={<NewTab />} />
                 <Route path="dashboard" element={<Dashboard />} />
+                <Route path="staff/new" element={<StaffForm />} />
+                <Route path="staff/:id/edit" element={<StaffForm />} />
+                <Route path="staff/:id" element={<StaffProfile />} />
                 <Route path="employees" element={<Employees />} />
-                <Route path="employees/new" element={<EmployeeForm />} />
-                <Route path="employees/:id" element={<EmployeeDetails />} />
-                <Route path="employees/:id/edit" element={<EmployeeForm />} />
+                <Route path="employees/new" element={<StaffForm />} />
+                <Route path="employees/:id" element={<StaffProfile />} />
+                <Route path="employees/:id/edit" element={<StaffForm />} />
                 <Route path="organization" element={<Organization />} />
                 <Route path="attendance" element={<Attendance />} />
                 <Route path="roster" element={<MonthlyRoster />} />
@@ -130,10 +135,13 @@ function App() {
                 <Route path="helpdesk" element={<Helpdesk />} />
                 <Route path="performance" element={<Performance />} />
                 <Route path="payroll" element={<Payroll />} />
-                <Route path="payroll/incentives" element={<Incentives />} />
-                <Route path="payroll/templates" element={<PayrollTemplates />} />
-                <Route path="payroll/templates/:id" element={<EditPayrollTemplate />} />
                 <Route path="payroll/:userid" element={<EmployeePayslipDetails />} />
+                <Route path="payroll/incentives" element={<Navigate to="/admin/incentives" replace />} />
+                <Route path="payroll/templates" element={<Navigate to="/admin/templates" replace />} />
+                <Route path="payroll/templates/:id" element={<EditPayrollTemplate />} />
+                <Route path="incentives" element={<Incentives />} />
+                <Route path="templates" element={<PayrollTemplates />} />
+                <Route path="templates/:id" element={<EditPayrollTemplate />} />
                 <Route path="messages" element={<Messages />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="report-viewer" element={<ReportViewer />} />
@@ -158,9 +166,12 @@ function App() {
               <Route path="/attendance/expenses" element={<Navigate to="/admin/expenses" replace />} />
               <Route path="/attendance/payslip" element={<Navigate to="/admin/payroll" replace />} />
               <Route path="/attendance/payslip/:userid" element={<Navigate to="/admin/payroll/:userid" replace />} />
-              <Route path="/attendance/payroll/incentives" element={<Navigate to="/admin/payroll/incentives" replace />} />
-              <Route path="/attendance/payroll/templates" element={<Navigate to="/admin/payroll/templates" replace />} />
-              <Route path="/attendance/payroll/templates/:id" element={<Navigate to="/admin/payroll/templates/:id" replace />} />
+              <Route path="/attendance/payroll/incentives" element={<Navigate to="/admin/incentives" replace />} />
+              <Route path="/attendance/incentives" element={<Navigate to="/admin/incentives" replace />} />
+              <Route path="/attendance/payroll/templates" element={<Navigate to="/admin/templates" replace />} />
+              <Route path="/attendance/templates" element={<Navigate to="/admin/templates" replace />} />
+              <Route path="/attendance/payroll/templates/:id" element={<Navigate to="/admin/templates/:id" replace />} />
+              <Route path="/attendance/templates/:id" element={<Navigate to="/admin/templates/:id" replace />} />
               <Route path="/attendance/live-tracking" element={<Navigate to="/admin/tracking" replace />} />
               <Route path="/attendance/live-tracking/timeline" element={<Navigate to="/admin/timeline" replace />} />
               <Route path="/attendance/works" element={<Navigate to="/admin/tasks" replace />} />

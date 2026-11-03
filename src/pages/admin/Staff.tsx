@@ -1054,7 +1054,7 @@ export default function Staff() {
             {/* Add Employee Button */}
             <Button
               size="sm"
-              onClick={() => navigate('/admin/employees/new')}
+              onClick={() => navigate('/admin/staff/new')}
               className="h-8 gap-1.5 text-xs font-semibold cursor-pointer shadow-xs"
             >
               <UserPlus className="size-3.5" />
@@ -2029,7 +2029,7 @@ export default function Staff() {
                           <div key={idx} className="relative">
                             <span
                               className={cn(
-                                'absolute -left-[19px] top-1 size-2 rounded-full',
+                                'absolute -left-[17px] top-1 size-2 rounded-full',
                                 isPunchIn ? 'bg-emerald-500' : 'bg-amber-500',
                               )}
                             />

@@ -61,8 +61,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Payroll',
     items: [
       { to: '/admin/payroll', label: 'Payslips', icon: Wallet },
-      { to: '/admin/payroll/incentives', label: 'Incentives', icon: TrendingUp },
-      { to: '/admin/payroll/templates', label: 'Templates', icon: FileText },
+      { to: '/admin/incentives', label: 'Incentives', icon: TrendingUp },
+      { to: '/admin/templates', label: 'Templates', icon: FileText },
     ],
   },
   {
@@ -118,13 +118,27 @@ export function navMeta(path: string): NavItem | undefined {
   if (path === '/admin/payroll' || path === '/attendance/payslip') {
     return { to: '/admin/payroll', label: 'Payslips', icon: Wallet }
   }
-  if (path === '/admin/payroll/incentives' || path === '/attendance/payroll/incentives') {
-    return { to: '/admin/payroll/incentives', label: 'Incentives', icon: TrendingUp }
+  if (
+    path === '/admin/incentives' ||
+    path === '/admin/payroll/incentives' ||
+    path === '/attendance/payroll/incentives' ||
+    path === '/attendance/incentives'
+  ) {
+    return { to: '/admin/incentives', label: 'Incentives', icon: TrendingUp }
   }
-  if (path === '/admin/payroll/templates' || path === '/attendance/payroll/templates') {
-    return { to: '/admin/payroll/templates', label: 'Payroll Templates', icon: FileText }
+  if (
+    path === '/admin/templates' ||
+    path === '/admin/payroll/templates' ||
+    path === '/attendance/payroll/templates' ||
+    path === '/attendance/templates'
+  ) {
+    return { to: '/admin/templates', label: 'Payroll Templates', icon: FileText }
   }
-  const editPayrollMatch = path.match(/^\/admin\/payroll\/templates\/([^/]+)$/) || path.match(/^\/attendance\/payroll\/templates\/([^/]+)$/)
+  const editPayrollMatch =
+    path.match(/^\/admin\/templates\/([^/]+)$/) ||
+    path.match(/^\/admin\/payroll\/templates\/([^/]+)$/) ||
+    path.match(/^\/attendance\/payroll\/templates\/([^/]+)$/) ||
+    path.match(/^\/attendance\/templates\/([^/]+)$/)
   if (editPayrollMatch) {
     return { to: path, label: 'Edit Payroll Template', icon: FileText }
   }
@@ -174,7 +188,10 @@ export function navMeta(path: string): NavItem | undefined {
   if (editMatch) {
     return { to: path, label: 'Edit Employee', icon: Users }
   }
-  const viewMatch = path.match(/^\/admin\/employees\/([^/]+)$/) || path.match(/^\/attendance\/staff\/([^/]+)$/)
+  const viewMatch =
+    path.match(/^\/admin\/employees\/([^/]+)$/) ||
+    path.match(/^\/admin\/staff\/([^/]+)$/) ||
+    path.match(/^\/attendance\/staff\/([^/]+)$/)
   if (viewMatch) {
     return { to: path, label: 'Employee Details', icon: Users }
   }
