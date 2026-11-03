@@ -24,10 +24,10 @@ const Organization = lazy(() => import('./pages/admin/Organization'))
 const Attendance = lazy(() => import('./pages/admin/Attendance'))
 const Roster = lazy(() => import('./pages/admin/Roster'))
 const MonthlyRoster = lazy(() => import('./pages/admin/monthly-roster/MonthlyRoster'))
-const Payroll = lazy(() => import('./pages/admin/Payroll'))
+const Payroll = lazy(() => import('./pages/admin/payroll/PayslipList'))
 const PayrollTemplates = lazy(() => import('./pages/admin/PayrollTemplates'))
 const EditPayrollTemplate = lazy(() => import('./pages/admin/EditPayrollTemplate'))
-const EmployeePayslipDetails = lazy(() => import('./pages/admin/EmployeePayslipDetails'))
+const EmployeePayslipDetails = lazy(() => import('./pages/admin/payroll/EmployeeSalaryConfig'))
 const Incentives = lazy(() => import('./pages/admin/Incentives'))
 const Leave = lazy(() => import('./pages/admin/Leave'))
 const LeaveTemplatePage = lazy(() => import('./pages/admin/LeaveTemplatePage'))
@@ -53,6 +53,7 @@ const Settings = lazy(() => import('./pages/admin/Settings'))
 const NewTab = lazy(() => import('./pages/admin/NewTab'))
 const SuperAdmin = lazy(() => import('./pages/SuperAdmin'))
 const CreateGeofencePage = lazy(() => import('./features/geofencing/components/CreateGeofencePage'))
+const GeofencingListPage = lazy(() => import('./features/geofencing/components/GeofencingSettings'))
 
 // Public & Utility pages
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
@@ -143,6 +144,7 @@ function App() {
                 <Route path="settings/leave-templates/:template_id" element={<LeaveTemplatePage />} />
                 <Route path="create-geo-location" element={<CreateGeofencePage />} />
                 <Route path="edit-geo-location/:id" element={<CreateGeofencePage />} />
+                <Route path="geofence-list" element={<GeofencingListPage />} />
               </Route>
 
               {/* Compatibility direct mappings for all v1 routes */}
@@ -171,7 +173,9 @@ function App() {
               <Route path="/attendance/report-builder/:id" element={<Navigate to="/admin/report-builder/:id" replace />} />
               <Route path="/attendance/create-geo-location" element={<Navigate to="/admin/create-geo-location" replace />} />
               <Route path="/attendance/edit-geo-location/:id" element={<Navigate to="/admin/edit-geo-location/:id" replace />} />
-              <Route path="/attendance/geofence-list" element={<Navigate to="/admin/settings" replace />} />
+              <Route path="/attendance/geofence-create" element={<Navigate to="/admin/create-geo-location" replace />} />
+              <Route path="/attendance/geofence-create/:id" element={<Navigate to="/admin/edit-geo-location/:id" replace />} />
+              <Route path="/attendance/geofence-list" element={<Navigate to="/admin/geofence-list" replace />} />
               <Route path="/settings" element={<Navigate to="/admin/settings" replace />} />
               <Route path="/settings/leave-templates/new" element={<Navigate to="/admin/settings/leave-templates/new" replace />} />
               <Route path="/settings/leave-templates/:template_id" element={<Navigate to="/admin/settings/leave-templates/:template_id" replace />} />

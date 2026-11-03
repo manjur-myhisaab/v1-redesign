@@ -1,237 +1,211 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
-import { GoogleMap, Marker, Circle, useJsApiLoader } from '@react-google-maps/api'
-import { MapPin, Loader2, Power } from 'lucide-react'
-import { useGeofencing } from '../hooks/useGeofencing'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { ArrowLeft, Loader2, MapPin } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import rdk, { GOOGLE_MAP_KEY, readItems, deleteItem } from '@/services/server'
+import { sound } from '@/lib/sound'
 import GeofenceListTable from './GeofenceListTable'
-import { useShell } from '@/components/admin/shell-context'
 import type { Geofence } from '../api/geofencingApi.types'
 
-const GOOGLE_MAPS_API_KEY =
-  (import.meta.env.VITE_GOOGLE_MAP_KEY as string | undefined) ||
-  (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined) ||
-  ''
-
-const DEFAULT_CENTER = { lat: 23.04, lng: 72.59 } // Default center
-const MAP_CONTAINER_STYLE = { width: '100%', height: '100%' }
-const MAP_OPTIONS: google.maps.MapOptions = {
-  streetViewControl: false,
-  mapTypeControl: false,
-  fullscreenControl: false,
-}
-
 export default function GeofencingSettings() {
-  const { openTab } = useShell()
-  const { enabled, setEnabled, geofences, loading, refresh, deleteGeofence } = useGeofencing()
-  const [selectedGeofence, setSelectedGeofence] = useState<Geofence | null>(null)
+  const mapRef = useRef<HTMLDivElement>(null)
+  const mapInstanceRef = useRef<any>(null)
+  const markerRef = useRef<any>(null)
+  const circleRef = useRef<any>(null)
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+  const [highlightedFence, setHighlightedFence] = useState<Geofence | null>(null)
+
+  // 1. Fetch geofences with exact v1 fields
+  const { data: geoFenceData = [], isLoading } = useQuery({
+    queryKey: ['geofences'],
+    queryFn: async () => {
+      const res = await rdk.request(
+        readItems('geo_fences', {
+          fields: [
+            '*',
+            'employee_category_id.employee_category_employee_category_id.*',
+            'employee_id.*',
+          ],
+          sort: ['date_created'],
+        })
+      )
+      if (Array.isArray(res)) return res
+      if (Array.isArray((res as any)?.data)) return (res as any).data
+      return []
+    },
+    refetchOnWindowFocus: false,
+    staleTime: 60 * 1000,
   })
 
-  const mapRef = useRef<google.maps.Map | null>(null)
+  // 2. Initialize Google Map
+  const initMap = useCallback(() => {
+    if (mapRef.current && !mapInstanceRef.current && window.google?.maps) {
+      mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+        center: { lat: 23.16995, lng: 87.640588 },
+        zoom: 6,
+        mapTypeControl: false,
+        fullscreenControl: false,
+        streetViewControl: false,
+        zoomControl: true,
+      })
 
-  const onMapLoad = useCallback((map: google.maps.Map) => {
-    mapRef.current = map
-  }, [])
-
-  const onMapUnmount = useCallback(() => {
-    mapRef.current = null
-  }, [])
-
-  // Auto-fit map to geofences when loaded
-  useEffect(() => {
-    if (!mapRef.current || geofences.length === 0) return
-    const bounds = new google.maps.LatLngBounds()
-    geofences.forEach((g) => {
-      if (g.geo_lat && g.geo_long) {
-        bounds.extend({ lat: Number(g.geo_lat), lng: Number(g.geo_long) })
+      // If a fence was already highlighted before map finished loading, apply it
+      if (highlightedFence) {
+        applyHighlight(highlightedFence)
       }
-    })
-    if (!bounds.isEmpty()) {
-      mapRef.current.fitBounds(bounds, 64)
     }
-  }, [geofences])
+  }, [highlightedFence])
 
-  const handleSelectGeofence = (g: Geofence | null) => {
-    setSelectedGeofence(g)
-    if (g && mapRef.current && g.geo_lat && g.geo_long) {
-      mapRef.current.panTo({ lat: Number(g.geo_lat), lng: Number(g.geo_long) })
-      mapRef.current.setZoom(15)
+  // Load Google Maps script matching v1
+  useEffect(() => {
+    if (!document.querySelector('script[src*="maps.googleapis.com"]')) {
+      const script = document.createElement('script')
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAP_KEY}`
+      script.async = true
+      script.defer = true
+      script.onload = () => initMap()
+      document.head.appendChild(script)
+    } else if (window.google?.maps) {
+      initMap()
+    }
+  }, [initMap])
+
+  // Helper to place marker & orange circle on map matching v1
+  const applyHighlight = (fence: any) => {
+    if (!mapInstanceRef.current || !window.google?.maps) return
+
+    const lat = parseFloat(String(fence.lat ?? fence.geo_lat ?? 0))
+    const lng = parseFloat(String(fence.long ?? fence.geo_long ?? 0))
+    const rad = Number(fence.radius) || 100
+
+    if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return
+
+    const loc = { lat, lng }
+
+    // Marker
+    if (!markerRef.current) {
+      markerRef.current = new window.google.maps.Marker({
+        position: loc,
+        map: mapInstanceRef.current,
+        title: fence.geo_fence_address || 'Geofence',
+      })
+    } else {
+      markerRef.current.setPosition(loc)
+      markerRef.current.setTitle(fence.geo_fence_address || 'Geofence')
+    }
+
+    // Circle (matching v1 orange styling)
+    if (!circleRef.current) {
+      circleRef.current = new window.google.maps.Circle({
+        map: mapInstanceRef.current,
+        center: loc,
+        radius: rad,
+        fillColor: '#FF6A00',
+        fillOpacity: 0.2,
+        strokeColor: '#FF6A00',
+        strokeOpacity: 0.6,
+        strokeWeight: 2,
+      })
+    } else {
+      circleRef.current.setCenter(loc)
+      circleRef.current.setRadius(rad)
+    }
+
+    // Zoom into location
+    mapInstanceRef.current.panTo(loc)
+    mapInstanceRef.current.setZoom(16)
+  }
+
+  // Highlight geofence handler
+  const highlightFence = (fence: any) => {
+    setHighlightedFence(fence)
+    if (fence) {
+      applyHighlight(fence)
     }
   }
+
+  // Auto-highlight first geofence when data is loaded matching v1
+  useEffect(() => {
+    if (geoFenceData && geoFenceData.length > 0 && !highlightedFence) {
+      highlightFence(geoFenceData[0])
+    }
+  }, [geoFenceData])
+
+  // Delete mutation matching v1
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string | number) => {
+      return await rdk.request(deleteItem('geo_fences', id))
+    },
+    onSuccess: () => {
+      sound.success()
+      toast.success('Geofence deleted successfully')
+      queryClient.invalidateQueries({ queryKey: ['geofences'] })
+      queryClient.invalidateQueries({ queryKey: ['geo_fences'] })
+      if (
+        highlightedFence &&
+        (String(highlightedFence.geo_fence_id) === String(highlightedFence.id))
+      ) {
+        setHighlightedFence(null)
+      }
+    },
+    onError: () => {
+      toast.error('Failed to delete geofence')
+    },
+  })
 
   const handleAddNew = () => {
-    openTab('/admin/create-geo-location')
+    navigate('/admin/create-geo-location')
   }
 
-  const handleEdit = (g: Geofence) => {
-    const id = g.geo_fence_id || g.id
-    if (id) {
-      openTab(`/admin/edit-geo-location/${id}`)
-    } else {
-      openTab('/admin/create-geo-location')
-    }
+  const handleEdit = (fence: any) => {
+    const id = fence.geo_fence_id || fence.id
+    navigate(`/admin/edit-geo-location/${id}`)
   }
 
-  const handleDelete = async (id: string) => {
-    await deleteGeofence(id)
-    if (selectedGeofence && (selectedGeofence.geo_fence_id === id || selectedGeofence.id === id)) {
-      setSelectedGeofence(null)
-    }
-    refresh()
+  const handleDelete = (id: string | number) => {
+    deleteMutation.mutate(id)
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col h-full">
-      {/* Top Bar Switcher */}
-      <div className="flex items-center justify-between border-b border-border bg-card px-6 py-3 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div
-            className={`grid size-9 place-items-center rounded-xl transition-colors ${
-              enabled ? 'bg-emerald-500/10 text-emerald-600' : 'bg-muted text-muted-foreground'
-            }`}
-          >
-            <Power className="size-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-foreground">Geofencing Service</h2>
-              <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                  enabled
-                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                    : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                {enabled ? 'ON' : 'OFF'}
-              </span>
-            </div>
-            <p className="text-[12px] text-muted-foreground">
-              {enabled
-                ? 'Geofence rules are active for attendance punch restrictions.'
-                : 'Geofencing is currently disabled. Punch restrictions are bypassed.'}
-            </p>
-          </div>
-        </div>
-
-        {/* Toggle Switch Button */}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          onClick={() => setEnabled(!enabled)}
-          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-            enabled ? 'bg-primary' : 'bg-muted'
-          }`}
+    <div className="relative flex min-h-0 flex-1 flex-col h-full w-full overflow-hidden bg-background">
+      {/* Top Floating Breadcrumb Bar */}
+      <div className="absolute top-4 left-4 z-20 flex items-center gap-2 rounded-xl border border-border/80 bg-background/90 px-3.5 py-2 shadow-lg backdrop-blur-md">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate('/admin/settings?section=system-settings')}
+          className="size-7 cursor-pointer text-muted-foreground hover:text-foreground"
+          title="Back to Settings"
         >
-          <span
-            className={`pointer-events-none inline-block size-5 rounded-full bg-background shadow-md ring-0 transition duration-200 ease-in-out ${
-              enabled ? 'translate-x-5' : 'translate-x-0'
-            }`}
-          />
-        </button>
+          <ArrowLeft className="size-4" />
+        </Button>
+        <div className="flex items-center gap-2">
+          <MapPin className="size-4 text-orange-500" />
+          <span className="text-xs font-semibold text-foreground">Geo-fencing Locations</span>
+          <span className="text-muted-foreground text-xs">•</span>
+          <span className="text-xs text-muted-foreground">{geoFenceData.length} Registered</span>
+        </div>
       </div>
 
-      {/* Main Content Area */}
-      {!enabled ? (
-        <div className="grid flex-1 place-items-center bg-muted/20 p-8 text-center">
-          <div className="max-w-md rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <MapPin className="mx-auto mb-3 size-10 text-muted-foreground/60" />
-            <h3 className="font-display text-base font-semibold">Geofencing Disabled</h3>
-            <p className="mt-1 text-[13px] text-muted-foreground">
-              Turn on Geofencing at the top to view active geofences on the map and manage location rules for your workspace employees.
-            </p>
-            <button
-              type="button"
-              onClick={() => setEnabled(true)}
-              className="btn-3d mt-4 inline-flex h-9 cursor-pointer items-center justify-center rounded-lg bg-primary px-4 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
-            >
-              Enable Geofencing
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="relative min-h-0 flex-1 overflow-hidden">
-          {/* Map background */}
-          {!GOOGLE_MAPS_API_KEY ? (
-            <div className="grid size-full place-items-center bg-muted/30 p-8 text-center">
-              <div className="max-w-sm text-[13px] text-muted-foreground">
-                <MapPin className="mx-auto mb-2 size-6 text-muted-foreground/70" />
-                Set <code className="rounded bg-muted px-1 py-0.5">VITE_GOOGLE_MAP_KEY</code> to view interactive geofence maps.
-              </div>
-            </div>
-          ) : loadError ? (
-            <div className="grid size-full place-items-center bg-muted/30 p-8 text-center">
-              <div className="max-w-sm text-[13px] text-muted-foreground">
-                Could not load Google Maps. Check your internet connection or API key.
-              </div>
-            </div>
-          ) : !isLoaded ? (
-            <div className="grid size-full place-items-center bg-muted/30">
-              <Loader2 className="size-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <GoogleMap
-              mapContainerStyle={MAP_CONTAINER_STYLE}
-              center={
-                selectedGeofence && selectedGeofence.geo_lat && selectedGeofence.geo_long
-                  ? { lat: Number(selectedGeofence.geo_lat), lng: Number(selectedGeofence.geo_long) }
-                  : DEFAULT_CENTER
-              }
-              zoom={7}
-              options={MAP_OPTIONS}
-              onLoad={onMapLoad}
-              onUnmount={onMapUnmount}
-            >
-              {geofences.map((g) => {
-                const id = g.geo_fence_id || g.id || ''
-                if (!g.geo_lat || !g.geo_long) return null
-                const lat = Number(g.geo_lat)
-                const lng = Number(g.geo_long)
-                const radius = Number(g.radius) || 100
-                const isSelected = selectedGeofence && (selectedGeofence.geo_fence_id === id || selectedGeofence.id === id)
+      {/* Full-bleed Google Map Canvas */}
+      <div ref={mapRef} className="size-full h-full w-full" />
 
-                return (
-                  <div key={id}>
-                    <Marker
-                      position={{ lat, lng }}
-                      onClick={() => handleSelectGeofence(g)}
-                      title={g.geo_fence_name || 'Geofence'}
-                    />
-                    <Circle
-                      center={{ lat, lng }}
-                      radius={radius}
-                      options={{
-                        strokeColor: isSelected ? '#10b981' : '#3b82f6',
-                        strokeOpacity: 0.8,
-                        strokeWeight: isSelected ? 3 : 2,
-                        fillColor: isSelected ? '#10b981' : '#3b82f6',
-                        fillOpacity: isSelected ? 0.25 : 0.15,
-                      }}
-                    />
-                  </div>
-                )
-              })}
-            </GoogleMap>
-          )}
-
-          {/* Floating Manage Geofences Overlay Card */}
-          <div className="absolute inset-x-4 bottom-4 z-10 flex justify-center pointer-events-none">
-            <div className="pointer-events-auto w-full max-w-4xl">
-              <GeofenceListTable
-                geofences={geofences}
-                loading={loading}
-                selectedId={selectedGeofence ? (selectedGeofence.geo_fence_id || selectedGeofence.id || null) : null}
-                onSelectGeofence={handleSelectGeofence}
-                onAddClick={handleAddNew}
-                onEditClick={handleEdit}
-                onDeleteClick={handleDelete}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Floating Manage Geo-fences Panel at Bottom matching v1 */}
+      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 w-[95%] max-w-5xl">
+        <GeofenceListTable
+          geofences={geoFenceData}
+          loading={isLoading}
+          selectedId={highlightedFence?.geo_fence_id || highlightedFence?.id || null}
+          onSelectGeofence={highlightFence}
+          onAddClick={handleAddNew}
+          onEditClick={handleEdit}
+          onDeleteClick={handleDelete}
+        />
+      </div>
     </div>
   )
 }

@@ -360,7 +360,7 @@ export const logout = async (): Promise<void> => {
 
 export const getCurrentUser = async (): Promise<any> => {
   try {
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem('authToken') || localStorage.getItem('mh.token');
     if (!token) {
       throw new Error('No authentication token found');
     }
@@ -864,7 +864,7 @@ export const deleteStaff = async (ids: (string | number)[]): Promise<any> => {
   }
 };
 
-const storedToken = localStorage.getItem('authToken');
+const storedToken = localStorage.getItem('authToken') || localStorage.getItem('mh.token');
 if (storedToken) {
   updateRDKAuth(storedToken);
 }
@@ -880,6 +880,7 @@ export const capitalizeWords = (str?: string | null): string => {
 };
 
 export {
+  readMe,
   readItems,
   readItem,
   deleteItem,
