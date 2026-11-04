@@ -10,6 +10,7 @@ import {
   Search,
   X,
   Layers,
+  Pencil,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -42,7 +43,8 @@ export default function GeofenceListTable({
 
   const handleDelete = async (e: React.MouseEvent, id: string | number) => {
     e.stopPropagation()
-    if (!window.confirm('Are you sure you want to delete this geofence?')) return
+    if (!window.confirm('Are you sure you want to delete this geofence?'))
+      return
     setDeletingId(id)
     try {
       await onDeleteClick(id)
@@ -63,8 +65,11 @@ export default function GeofenceListTable({
   }, [geofences, search])
 
   const selectedGeofence = useMemo(
-    () => geofences.find((g) => String(g.geo_fence_id || g.id) === String(selectedId)) || null,
-    [geofences, selectedId]
+    () =>
+      geofences.find(
+        (g) => String(g.geo_fence_id || g.id) === String(selectedId),
+      ) || null,
+    [geofences, selectedId],
   )
 
   const formatCoord = (val?: string | number | null) => {
@@ -74,9 +79,14 @@ export default function GeofenceListTable({
   }
 
   const getCategoryDisplay = (fence: any) => {
-    const list = Array.isArray(fence.employee_category_id) ? fence.employee_category_id : []
+    const list = Array.isArray(fence.employee_category_id)
+      ? fence.employee_category_id
+      : []
     const names = list
-      .map((cat: any) => cat.employee_category_employee_category_id?.employee_category_name)
+      .map(
+        (cat: any) =>
+          cat.employee_category_employee_category_id?.employee_category_name,
+      )
       .filter(Boolean)
     return names.length > 0 ? names.join(', ') : '-'
   }
@@ -92,7 +102,7 @@ export default function GeofenceListTable({
             className="flex items-center gap-2.5 text-left cursor-pointer group min-w-0 flex-1"
             title="Click to expand Geo-fences list"
           >
-            <div className="grid size-8 shrink-0 place-items-center rounded-xl bg-orange-500/10 text-orange-600">
+            <div className="grid size-8 shrink-0 place-items-center rounded-xl bg-[#6f9ff1]/10 text-[#6f9ff1]">
               <Layers className="size-4" />
             </div>
             <div className="min-w-0 flex-1">
@@ -105,8 +115,9 @@ export default function GeofenceListTable({
                 </span>
               </div>
               {selectedGeofence ? (
-                <p className="text-[11px] text-orange-600 truncate font-medium">
-                  Highlighted: {selectedGeofence.geo_fence_address || 'Selected Geofence'}
+                <p className="text-[11px] text-[#6f9ff1] truncate font-medium">
+                  Highlighted:{' '}
+                  {selectedGeofence.geo_fence_address || 'Selected Geofence'}
                 </p>
               ) : (
                 <p className="text-[11px] text-muted-foreground truncate hidden sm:block">
@@ -150,7 +161,8 @@ export default function GeofenceListTable({
             Manage Geo-fences ({geofences.length} Total)
           </h3>
           <p className="text-[11px] text-muted-foreground">
-            Select a geofence to highlight it on the map. You can also edit or delete existing fences.
+            Select a geofence to highlight it on the map. You can also edit or
+            delete existing fences.
           </p>
         </div>
 
@@ -161,7 +173,7 @@ export default function GeofenceListTable({
             className="h-8 gap-1.5 text-xs font-semibold cursor-pointer bg-primary text-primary-foreground hover:opacity-90"
           >
             <Plus className="size-3.5" />
-            <span>+ Add New Geo Fence</span>
+            <span>Add New Geo Fence</span>
           </Button>
 
           <button
@@ -215,19 +227,28 @@ export default function GeofenceListTable({
           <tbody className="divide-y divide-border/60">
             {loading ? (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-muted-foreground">
+                <td
+                  colSpan={7}
+                  className="p-6 text-center text-muted-foreground"
+                >
                   <span className="inline-flex items-center gap-2">
-                    <Loader2 className="size-4 animate-spin text-primary" /> Loading geofences…
+                    <Loader2 className="size-4 animate-spin text-primary" />{' '}
+                    Loading geofences…
                   </span>
                 </td>
               </tr>
             ) : filteredGeofences.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-muted-foreground">
+                <td
+                  colSpan={7}
+                  className="p-6 text-center text-muted-foreground"
+                >
                   <div className="flex flex-col items-center justify-center gap-1.5">
                     <MapPin className="size-5 text-muted-foreground/60" />
                     <span>
-                      {search ? 'No matching geofences found.' : 'No geofences added yet. Click "+ Add New Geo Fence" to create one.'}
+                      {search
+                        ? 'No matching geofences found.'
+                        : 'No geofences added yet. Click "+ Add New Geo Fence" to create one.'}
                     </span>
                   </div>
                 </td>
@@ -259,8 +280,13 @@ export default function GeofenceListTable({
                     <td className="p-2.5 tabular-nums text-muted-foreground">
                       {formatCoord(fence.long ?? fence.geo_long)}
                     </td>
-                    <td className="p-2.5 tabular-nums">{fence.radius || 100}</td>
-                    <td className="p-2.5 max-w-[180px] truncate text-muted-foreground" title={getCategoryDisplay(fence)}>
+                    <td className="p-2.5 tabular-nums">
+                      {fence.radius || 100}
+                    </td>
+                    <td
+                      className="p-2.5 max-w-[180px] truncate text-muted-foreground"
+                      title={getCategoryDisplay(fence)}
+                    >
                       {getCategoryDisplay(fence)}
                     </td>
                     <td className="p-2.5">
@@ -275,7 +301,10 @@ export default function GeofenceListTable({
                         {fence.status || 'active'}
                       </Badge>
                     </td>
-                    <td className="p-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                    <td
+                      className="p-2.5 text-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <div className="flex items-center justify-center gap-1.5">
                         <Button
                           variant="ghost"
@@ -284,7 +313,7 @@ export default function GeofenceListTable({
                           className="size-7 cursor-pointer text-muted-foreground hover:text-foreground"
                           title="Edit"
                         >
-                          <Edit3 className="size-3.5" />
+                          <Pencil className="size-3.5" />
                         </Button>
                         <Button
                           variant="ghost"

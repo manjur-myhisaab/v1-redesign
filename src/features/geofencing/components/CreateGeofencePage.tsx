@@ -52,7 +52,9 @@ export default function CreateGeofencePage() {
   const circleRef = useRef<any>(null)
 
   const [location, setLocation] = useState({ lat: 23.16995, lng: 87.640588 })
-  const [locationOption, setLocationOption] = useState<'current' | 'away'>('current')
+  const [locationOption, setLocationOption] = useState<'current' | 'away'>(
+    'current',
+  )
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -83,7 +85,9 @@ export default function CreateGeofencePage() {
   const { data: employeeCategory = [] } = useQuery({
     queryKey: ['empCategory'],
     queryFn: async () => {
-      const res = await rdk.request(readItems('employee_category', { limit: -1 }))
+      const res = await rdk.request(
+        readItems('employee_category', { limit: -1 }),
+      )
       if (Array.isArray(res)) return res
       if (Array.isArray((res as any)?.data)) return (res as any).data
       return []
@@ -114,12 +118,21 @@ export default function CreateGeofencePage() {
             path: 'users',
             method: 'GET',
             params: queryParams,
-          })
+          }),
         )
-        return Array.isArray(response) ? response : Array.isArray(response?.data) ? response.data : []
+        return Array.isArray(response)
+          ? response
+          : Array.isArray(response?.data)
+            ? response.data
+            : []
       } catch (err) {
-        console.warn('customEndpoint users failed, falling back to readItems:', err)
-        const fallback = await rdk.request(readItems('directus_users', { limit: -1 }))
+        console.warn(
+          'customEndpoint users failed, falling back to readItems:',
+          err,
+        )
+        const fallback = await rdk.request(
+          readItems('directus_users', { limit: -1 }),
+        )
         return Array.isArray(fallback) ? fallback : []
       }
     },
@@ -133,7 +146,9 @@ export default function CreateGeofencePage() {
       id: String(u.id),
       name: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || 'No Name',
       raw_category_id: String(
-        u.employee_category_id?.employee_category_id ?? u.employee_category_id ?? ''
+        u.employee_category_id?.employee_category_id ??
+          u.employee_category_id ??
+          '',
       ),
       category: u.employee_category_id?.employee_category_name || '-',
       designation: u.designation_id?.designation_name || 'Staff',
@@ -142,7 +157,10 @@ export default function CreateGeofencePage() {
 
   const displayedEmployees = useMemo(() => {
     return cachedStaff.filter((emp) => {
-      if (activeCategoryTab !== 'all' && String(emp.raw_category_id) !== activeCategoryTab) {
+      if (
+        activeCategoryTab !== 'all' &&
+        String(emp.raw_category_id) !== activeCategoryTab
+      ) {
         return false
       }
       if (
@@ -168,9 +186,13 @@ export default function CreateGeofencePage() {
             'employee_category_id.employee_category_employee_category_id.*',
             'employee_id.*',
           ],
-        })
+        }),
       )
-      const list = Array.isArray(res) ? res : Array.isArray((res as any)?.data) ? (res as any).data : []
+      const list = Array.isArray(res)
+        ? res
+        : Array.isArray((res as any)?.data)
+          ? (res as any).data
+          : []
       return list.length > 0 ? list[0] : null
     },
     enabled: isEdit,
@@ -202,8 +224,8 @@ export default function CreateGeofencePage() {
         ? geo.employee_category_id
             .map(
               (cat: any) =>
-                cat.employee_category_employee_category_id?.employee_category_id ??
-                cat.employee_category_id
+                cat.employee_category_employee_category_id
+                  ?.employee_category_id ?? cat.employee_category_id,
             )
             .filter(Boolean)
             .map(String)
@@ -212,7 +234,10 @@ export default function CreateGeofencePage() {
 
       // Map saved employees matching v1
       const savedEmps = Array.isArray(geo.employee_id)
-        ? geo.employee_id.map((emp: any) => emp.directus_users_id).filter(Boolean).map(String)
+        ? geo.employee_id
+            .map((emp: any) => emp.directus_users_id)
+            .filter(Boolean)
+            .map(String)
         : []
       setSelectedEmployees(savedEmps)
     }
@@ -223,55 +248,61 @@ export default function CreateGeofencePage() {
     (lat: number, lng: number) => {
       if (window.google?.maps?.Geocoder) {
         const geocoder = new window.google.maps.Geocoder()
-        geocoder.geocode({ location: { lat, lng } }, (results: any, status: string) => {
-          if (status === 'OK' && results?.[0]) {
-            setValue('geo_fence_address', results[0].formatted_address)
-          }
-        })
+        geocoder.geocode(
+          { location: { lat, lng } },
+          (results: any, status: string) => {
+            if (status === 'OK' && results?.[0]) {
+              setValue('geo_fence_address', results[0].formatted_address)
+            }
+          },
+        )
       }
     },
-    [setValue]
+    [setValue],
   )
 
   // Helper: Marker & Circle visual update on Google Map matching v1
-  const updateMarkerAndCircle = useCallback((loc: { lat: number; lng: number }, rad: number) => {
-    if (!mapInstanceRef.current || !window.google?.maps) return
+  const updateMarkerAndCircle = useCallback(
+    (loc: { lat: number; lng: number }, rad: number) => {
+      if (!mapInstanceRef.current || !window.google?.maps) return
 
-    // Marker
-    if (!markerRef.current) {
-      markerRef.current = new window.google.maps.Marker({
-        position: loc,
-        map: mapInstanceRef.current,
-        draggable: true,
-      })
+      // Marker
+      if (!markerRef.current) {
+        markerRef.current = new window.google.maps.Marker({
+          position: loc,
+          map: mapInstanceRef.current,
+          draggable: true,
+        })
 
-      markerRef.current.addListener('dragend', (e: any) => {
-        const newLoc = { lat: e.latLng.lat(), lng: e.latLng.lng() }
-        setLocation(newLoc)
-        updateMarkerAndCircle(newLoc, radiusRef.current)
-        reverseGeocode(newLoc.lat, newLoc.lng)
-      })
-    } else {
-      markerRef.current.setPosition(loc)
-    }
+        markerRef.current.addListener('dragend', (e: any) => {
+          const newLoc = { lat: e.latLng.lat(), lng: e.latLng.lng() }
+          setLocation(newLoc)
+          updateMarkerAndCircle(newLoc, radiusRef.current)
+          reverseGeocode(newLoc.lat, newLoc.lng)
+        })
+      } else {
+        markerRef.current.setPosition(loc)
+      }
 
-    // Circle (orange color matching v1)
-    if (!circleRef.current) {
-      circleRef.current = new window.google.maps.Circle({
-        map: mapInstanceRef.current,
-        center: loc,
-        radius: rad,
-        fillColor: '#FF6A00',
-        fillOpacity: 0.2,
-        strokeColor: '#FF6A00',
-        strokeOpacity: 0.6,
-        strokeWeight: 2,
-      })
-    } else {
-      circleRef.current.setCenter(loc)
-      circleRef.current.setRadius(rad)
-    }
-  }, [reverseGeocode])
+      // Circle (orange color matching v1)
+      if (!circleRef.current) {
+        circleRef.current = new window.google.maps.Circle({
+          map: mapInstanceRef.current,
+          center: loc,
+          radius: rad,
+          fillColor: '#6f9ff1',
+          fillOpacity: 0.2,
+          strokeColor: '#6f9ff1',
+          strokeOpacity: 0.6,
+          strokeWeight: 2,
+        })
+      } else {
+        circleRef.current.setCenter(loc)
+        circleRef.current.setRadius(rad)
+      }
+    },
+    [reverseGeocode],
+  )
 
   // Live radius updates to circle
   useEffect(() => {
@@ -330,7 +361,10 @@ export default function CreateGeofencePage() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         toast.dismiss(toastId)
-        const newLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        const newLocation = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        }
         setLocation(newLocation)
         updateMarkerAndCircle(newLocation, radiusRef.current)
         if (mapInstanceRef.current) {
@@ -343,9 +377,11 @@ export default function CreateGeofencePage() {
       (err) => {
         toast.dismiss(toastId)
         console.error('Geolocation error:', err)
-        toast.error('Could not get device location. Please allow location permissions in browser.')
+        toast.error(
+          'Could not get device location. Please allow location permissions in browser.',
+        )
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 10000 },
     )
   }
 
@@ -383,7 +419,7 @@ export default function CreateGeofencePage() {
             path: 'api/get_place_coordinates',
             method: 'POST',
             body: JSON.stringify({ query: searchQuery }),
-          })
+          }),
         )
 
         let results: any[] = []
@@ -398,13 +434,16 @@ export default function CreateGeofencePage() {
         if (results.length === 0 && window.google?.maps?.Geocoder) {
           // Fallback to Google Maps Geocoder if custom endpoint returned no items
           const geocoder = new window.google.maps.Geocoder()
-          geocoder.geocode({ address: searchQuery }, (gResults: any, status: string) => {
-            if (status === 'OK' && Array.isArray(gResults)) {
-              setSearchResults(gResults)
-            } else {
-              setSearchError('No locations found')
-            }
-          })
+          geocoder.geocode(
+            { address: searchQuery },
+            (gResults: any, status: string) => {
+              if (status === 'OK' && Array.isArray(gResults)) {
+                setSearchResults(gResults)
+              } else {
+                setSearchError('No locations found')
+              }
+            },
+          )
         } else {
           setSearchResults(results)
           if (results.length === 0) setSearchError('No locations found')
@@ -414,13 +453,16 @@ export default function CreateGeofencePage() {
         // Fallback to Google Maps Geocoder
         if (window.google?.maps?.Geocoder) {
           const geocoder = new window.google.maps.Geocoder()
-          geocoder.geocode({ address: searchQuery }, (gResults: any, status: string) => {
-            if (status === 'OK' && Array.isArray(gResults)) {
-              setSearchResults(gResults)
-            } else {
-              setSearchError('No locations found')
-            }
-          })
+          geocoder.geocode(
+            { address: searchQuery },
+            (gResults: any, status: string) => {
+              if (status === 'OK' && Array.isArray(gResults)) {
+                setSearchResults(gResults)
+              } else {
+                setSearchError('No locations found')
+              }
+            },
+          )
         } else {
           setSearchError('Error searching location')
         }
@@ -456,7 +498,11 @@ export default function CreateGeofencePage() {
         mapInstanceRef.current.panTo(newLoc)
         mapInstanceRef.current.setZoom(16)
       }
-      const label = item.description || item.formatted_address || item.name || `Lat: ${lat}, Lng: ${lng}`
+      const label =
+        item.description ||
+        item.formatted_address ||
+        item.name ||
+        `Lat: ${lat}, Lng: ${lng}`
       setValue('geo_fence_address', label)
       toast.success(`Selected: ${label}`)
       setSearchResults([])
@@ -468,7 +514,9 @@ export default function CreateGeofencePage() {
   // Employee Selection helpers matching v1
   const handleEmployeeToggle = (empId: string) => {
     setSelectedEmployees((prev) =>
-      prev.includes(empId) ? prev.filter((id) => id !== empId) : [...prev, empId]
+      prev.includes(empId)
+        ? prev.filter((id) => id !== empId)
+        : [...prev, empId],
     )
   }
 
@@ -482,7 +530,9 @@ export default function CreateGeofencePage() {
 
   const handleDeselectAllVisible = () => {
     const visibleIds = displayedEmployees.map((emp) => emp.id)
-    setSelectedEmployees((prev) => prev.filter((id) => !visibleIds.includes(id)))
+    setSelectedEmployees((prev) =>
+      prev.filter((id) => !visibleIds.includes(id)),
+    )
   }
 
   // 5. Submit mutation matching v1 payload exactly
@@ -546,7 +596,7 @@ export default function CreateGeofencePage() {
           <ArrowLeft className="size-4" />
         </Button>
         <div className="flex items-center gap-2">
-          <LocateFixed className="size-4 text-orange-500" />
+          <LocateFixed className="size-4 text-[#6f9ff1]" />
           <span className="text-xs font-semibold text-foreground">
             {isEdit ? 'Update Geofence Location' : 'Create Geofence Location'}
           </span>
@@ -576,7 +626,11 @@ export default function CreateGeofencePage() {
             className="h-9 shadow-lg gap-2 bg-primary text-primary-foreground font-semibold"
           >
             <Compass className="size-4" />
-            <span>{isEdit ? 'Click to Update Geofence' : 'Click to Configure Geofence'}</span>
+            <span>
+              {isEdit
+                ? 'Click to Update Geofence'
+                : 'Click to Configure Geofence'}
+            </span>
           </Button>
         </div>
       )}
@@ -588,7 +642,7 @@ export default function CreateGeofencePage() {
             'absolute z-20 transition-all duration-300',
             isMinimized
               ? 'bottom-5 right-6 w-[420px] max-w-[95vw]'
-              : 'bottom-5 left-1/2 -translate-x-1/2 w-[95%] max-w-6xl'
+              : 'bottom-5 left-1/2 -translate-x-1/2 w-[95%] max-w-6xl',
           )}
         >
           <div className="rounded-2xl border border-border/80 bg-background/95 p-4 shadow-2xl backdrop-blur-md">
@@ -597,7 +651,7 @@ export default function CreateGeofencePage() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-2 border-b border-border pb-2">
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-orange-500/10 rounded-lg text-orange-600">
+                    <div className="p-1.5 bg-[#6f9ff1]/10 rounded-lg text-[#6f9ff1]">
                       <LocateFixed className="size-4" />
                     </div>
                     <div>
@@ -605,7 +659,8 @@ export default function CreateGeofencePage() {
                         {isEdit ? 'Update Mode' : 'Configuration Mode'}
                       </div>
                       <div className="text-[10px] text-muted-foreground tabular-nums">
-                        LAT: {location.lat.toFixed(4)} | LNG: {location.lng.toFixed(4)}
+                        LAT: {location.lat.toFixed(4)} | LNG:{' '}
+                        {location.lng.toFixed(4)}
                       </div>
                     </div>
                   </div>
@@ -632,7 +687,10 @@ export default function CreateGeofencePage() {
                 </div>
 
                 {watch('geo_fence_address') && (
-                  <p className="text-[11px] text-muted-foreground truncate" title={watch('geo_fence_address')}>
+                  <p
+                    className="text-[11px] text-muted-foreground truncate"
+                    title={watch('geo_fence_address')}
+                  >
                     {watch('geo_fence_address')}
                   </p>
                 )}
@@ -665,7 +723,9 @@ export default function CreateGeofencePage() {
                     onClick={handleSubmit(onSubmit)}
                     className="h-8 text-xs gap-1.5 font-semibold bg-primary text-primary-foreground"
                   >
-                    {mutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                    {mutation.isPending ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : null}
                     <span>Save</span>
                   </Button>
                 </div>
@@ -676,15 +736,18 @@ export default function CreateGeofencePage() {
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-border pb-2.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 bg-orange-500/10 rounded-lg text-orange-600">
+                    <div className="p-1.5 bg-[#6f9ff1]/10 rounded-lg text-[#6f9ff1]">
                       <LocateFixed className="size-4.5" />
                     </div>
                     <div>
                       <h2 className="text-sm font-bold text-foreground">
-                        {isEdit ? 'Update Geofence Parameters' : 'Configure New Geofence'}
+                        {isEdit
+                          ? 'Update Geofence Parameters'
+                          : 'Configure New Geofence'}
                       </h2>
                       <p className="text-[11px] text-muted-foreground">
-                        Click anywhere on map to pin coordinates or choose from settings below.
+                        Click anywhere on map to pin coordinates or choose from
+                        settings below.
                       </p>
                     </div>
                   </div>
@@ -719,7 +782,8 @@ export default function CreateGeofencePage() {
                   <div className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-sm h-[360px] justify-between">
                     <div className="space-y-3 overflow-y-auto pr-1">
                       <label className="font-bold text-xs text-foreground flex items-center gap-1.5 border-b border-border pb-2">
-                        <LocateFixed className="size-3.5 text-orange-500" /> Settings
+                        <LocateFixed className="size-3.5 text-[#6f9ff1]" />{' '}
+                        Settings
                       </label>
 
                       {/* Dropdown for location option */}
@@ -729,7 +793,9 @@ export default function CreateGeofencePage() {
                         </Label>
                         <Select
                           value={locationOption}
-                          onValueChange={(val: 'current' | 'away') => handleLocationOptionChange(val)}
+                          onValueChange={(val: 'current' | 'away') =>
+                            handleLocationOptionChange(val)
+                          }
                         >
                           <SelectTrigger className="h-8 text-xs bg-background">
                             <SelectValue />
@@ -767,7 +833,9 @@ export default function CreateGeofencePage() {
                           </div>
 
                           {searchError && (
-                            <p className="text-[11px] text-destructive">{searchError}</p>
+                            <p className="text-[11px] text-destructive">
+                              {searchError}
+                            </p>
                           )}
 
                           {searchResults.length > 0 && (
@@ -809,12 +877,15 @@ export default function CreateGeofencePage() {
                       {/* Radius Input */}
                       <div className="space-y-1">
                         <Label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                          <CircleDashed className="size-3.5 text-orange-500" /> Geofence Radius (meters)
+                          <CircleDashed className="size-3.5 text-[#6f9ff1]" />{' '}
+                          Geofence Radius (meters)
                         </Label>
                         <Input
                           type="number"
                           value={radius}
-                          onChange={(e) => setValue('radius', Number(e.target.value))}
+                          onChange={(e) =>
+                            setValue('radius', Number(e.target.value))
+                          }
                           className="h-8 text-xs bg-background"
                           min={10}
                           max={50000}
@@ -834,14 +905,16 @@ export default function CreateGeofencePage() {
                   {/* Column 2: Employee Categories */}
                   <div className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-sm h-[360px]">
                     <label className="font-bold text-xs text-foreground mb-3 flex items-center gap-1.5 border-b border-border pb-2 shrink-0">
-                      <Layers className="size-3.5 text-orange-500" /> Applicable Categories (
-                      {selectedCategories.length} selected)
+                      <Layers className="size-3.5 text-[#6f9ff1]" /> Applicable
+                      Categories ({selectedCategories.length} selected)
                     </label>
 
                     <div className="flex-1 overflow-y-auto space-y-2 pr-1">
                       {employeeCategory.length > 0 ? (
                         employeeCategory.map((cat: any) => {
-                          const catId = String(cat.employee_category_id ?? cat.id)
+                          const catId = String(
+                            cat.employee_category_id ?? cat.id,
+                          )
                           const isChecked = selectedCategories.includes(catId)
 
                           return (
@@ -850,8 +923,8 @@ export default function CreateGeofencePage() {
                               className={cn(
                                 'flex items-center gap-2.5 p-2 rounded-lg border text-xs cursor-pointer transition-colors',
                                 isChecked
-                                  ? 'border-orange-500/50 bg-orange-500/10 font-medium text-foreground'
-                                  : 'border-border hover:bg-muted/50 text-muted-foreground'
+                                  ? 'border-[#6f9ff1]/50 bg-[#6f9ff1]/10 font-medium text-foreground'
+                                  : 'border-border hover:bg-muted/50 text-muted-foreground',
                               )}
                             >
                               <Checkbox
@@ -860,11 +933,14 @@ export default function CreateGeofencePage() {
                                   setSelectedCategories((prev) =>
                                     prev.includes(catId)
                                       ? prev.filter((id) => id !== catId)
-                                      : [...prev, catId]
+                                      : [...prev, catId],
                                   )
                                 }}
                               />
-                              <span>{cat.employee_category_name || `Category #${catId}`}</span>
+                              <span>
+                                {cat.employee_category_name ||
+                                  `Category #${catId}`}
+                              </span>
                             </label>
                           )
                         })
@@ -879,8 +955,8 @@ export default function CreateGeofencePage() {
                   {/* Column 3: Employee Selection */}
                   <div className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-sm h-[360px]">
                     <label className="font-bold text-xs text-foreground flex items-center gap-1.5 border-b border-border pb-2 mb-2 shrink-0">
-                      <Users className="size-3.5 text-orange-500" /> Select Employees (
-                      {selectedEmployees.length} selected)
+                      <Users className="size-3.5 text-[#6f9ff1]" /> Select
+                      Employees ({selectedEmployees.length} selected)
                     </label>
 
                     {/* Filter tabs */}
@@ -891,8 +967,8 @@ export default function CreateGeofencePage() {
                         className={cn(
                           'px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap rounded-full transition-colors cursor-pointer',
                           activeCategoryTab === 'all'
-                            ? 'bg-orange-500 text-white'
-                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                            ? 'bg-[#6f9ff1] text-white'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80',
                         )}
                       >
                         All ({cachedStaff.length})
@@ -900,7 +976,7 @@ export default function CreateGeofencePage() {
                       {employeeCategory.map((cat: any) => {
                         const catId = String(cat.employee_category_id ?? cat.id)
                         const count = cachedStaff.filter(
-                          (emp) => String(emp.raw_category_id) === catId
+                          (emp) => String(emp.raw_category_id) === catId,
                         ).length
                         return (
                           <button
@@ -910,8 +986,8 @@ export default function CreateGeofencePage() {
                             className={cn(
                               'px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap rounded-full transition-colors cursor-pointer',
                               activeCategoryTab === catId
-                                ? 'bg-orange-500 text-white'
-                                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                ? 'bg-[#6f9ff1] text-white'
+                                : 'bg-muted text-muted-foreground hover:bg-muted/80',
                             )}
                           >
                             {cat.employee_category_name} ({count})
@@ -954,8 +1030,8 @@ export default function CreateGeofencePage() {
                     <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
                       {isLoadingUsers ? (
                         <div className="text-center text-muted-foreground py-12 text-xs">
-                          <Loader2 className="size-4 animate-spin inline mr-1 text-primary" /> Loading
-                          employees…
+                          <Loader2 className="size-4 animate-spin inline mr-1 text-primary" />{' '}
+                          Loading employees…
                         </div>
                       ) : displayedEmployees.length > 0 ? (
                         displayedEmployees.map((emp) => {
@@ -966,14 +1042,16 @@ export default function CreateGeofencePage() {
                               className={cn(
                                 'flex items-center justify-between p-1.5 rounded-lg border text-xs cursor-pointer transition-colors',
                                 isChecked
-                                  ? 'border-orange-500/50 bg-orange-500/10'
-                                  : 'border-border hover:bg-muted/50'
+                                  ? 'border-[#6f9ff1]/50 bg-[#6f9ff1]/10'
+                                  : 'border-border hover:bg-muted/50',
                               )}
                             >
                               <div className="flex items-center gap-2 truncate pr-1">
                                 <Checkbox
                                   checked={isChecked}
-                                  onCheckedChange={() => handleEmployeeToggle(emp.id)}
+                                  onCheckedChange={() =>
+                                    handleEmployeeToggle(emp.id)
+                                  }
                                 />
                                 <div className="truncate">
                                   <div className="font-semibold text-foreground truncate">
@@ -1006,8 +1084,12 @@ export default function CreateGeofencePage() {
                     disabled={mutation.isPending}
                     className="h-9 px-6 text-xs font-semibold gap-2 cursor-pointer bg-primary text-primary-foreground hover:opacity-90 shadow-md"
                   >
-                    {mutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : null}
-                    <span>{isEdit ? 'Update Geofence' : 'Confirm Location'}</span>
+                    {mutation.isPending ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : null}
+                    <span>
+                      {isEdit ? 'Update Geofence' : 'Confirm Location'}
+                    </span>
                   </Button>
                 </div>
               </form>

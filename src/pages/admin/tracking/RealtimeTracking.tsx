@@ -128,7 +128,7 @@ export const RealtimeTracking: React.FC = () => {
   // View Profile Handler
   const handleViewProfile = useCallback(
     (userId: string | number) => {
-      navigate(`/admin/staff?id=${userId}`)
+      navigate(`/admin/staff/${userId}`)
     },
     [navigate]
   )

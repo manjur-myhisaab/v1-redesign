@@ -138,7 +138,7 @@ export const HOLIDAY_TYPES: HolidayTypeOption[] = [
   {
     id: 'RELIGIOUS_HOLIDAY',
     name: 'Religious Holiday',
-    tone: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
+    tone: 'bg-[#6f9ff1]/10 text-[#6f9ff1] dark:text-orange-400 border-[#6f9ff1]/20',
     description: 'Observance of religious importance',
   },
   {

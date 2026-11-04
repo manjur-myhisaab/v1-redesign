@@ -68,9 +68,21 @@ const MONTH_CHOICES = [
 
 // System heads exactly matching v1
 const HARDCODED_SYSTEM_HEADS = [
-  { value: 'Basic Salary', label: 'Basic Salary', helpText: 'System calculated Basic Salary' },
-  { value: 'Monthly CTC', label: 'Monthly CTC', helpText: 'System calculated Cost To Company' },
-  { value: 'Overtime', label: 'Overtime', helpText: 'System calculated Overtime Pay' },
+  {
+    value: 'Basic Salary',
+    label: 'Basic Salary',
+    helpText: 'System calculated Basic Salary',
+  },
+  {
+    value: 'Monthly CTC',
+    label: 'Monthly CTC',
+    helpText: 'System calculated Cost To Company',
+  },
+  {
+    value: 'Overtime',
+    label: 'Overtime',
+    helpText: 'System calculated Overtime Pay',
+  },
 ]
 
 const YEARS = [2024, 2025, 2026, 2027, 2028]
@@ -91,7 +103,9 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
   const { data: payrollHeadsApi = [], isLoading: loadingHeads } = useQuery({
     queryKey: ['all-payroll-heads'],
     queryFn: async () => {
-      const res = await rdk.request(readItems('payroll_heads', { fields: ['*'], limit: -1 }))
+      const res = await rdk.request(
+        readItems('payroll_heads', { fields: ['*'], limit: -1 }),
+      )
       if (Array.isArray(res)) return res
       if (Array.isArray((res as any)?.data)) return (res as any).data
       return []
@@ -104,7 +118,10 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
   const customHeadChoices = useMemo(() => {
     const list = allHeads && allHeads.length > 0 ? allHeads : payrollHeadsApi
     return list
-      .filter((head: any) => String(head.payroll_head_id ?? head.id) !== String(headId))
+      .filter(
+        (head: any) =>
+          String(head.payroll_head_id ?? head.id) !== String(headId),
+      )
       .map((head: any) => ({
         value: String(head.payroll_head_id ?? head.id),
         label: head.payroll_head_name,
@@ -113,7 +130,9 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
   }, [allHeads, payrollHeadsApi, headId])
 
   // UI state (matching v1)
-  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString())
+  const [selectedYear, setSelectedYear] = useState<string>(
+    new Date().getFullYear().toString(),
+  )
   const [selectedMonths, setSelectedMonths] = useState<string[]>([])
   const [selectedSystemHeads, setSelectedSystemHeads] = useState<string[]>([])
   const [selectedCustomHeads, setSelectedCustomHeads] = useState<string[]>([])
@@ -153,21 +172,28 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
       setValue('payroll_value_type', sourceData.payroll_value_type || 'fixed')
       setValue(
         'payroll_value',
-        sourceData.payroll_value !== null && sourceData.payroll_value !== undefined
+        sourceData.payroll_value !== null &&
+          sourceData.payroll_value !== undefined
           ? String(sourceData.payroll_value)
-          : ''
+          : '',
       )
-      setValue('payroll_head_attn', sourceData.payroll_head_attn || 'on_attendance')
+      setValue(
+        'payroll_head_attn',
+        sourceData.payroll_head_attn || 'on_attendance',
+      )
       setValue(
         'payroll_head_max_limit',
-        sourceData.payroll_head_max_limit !== null && sourceData.payroll_head_max_limit !== undefined
+        sourceData.payroll_head_max_limit !== null &&
+          sourceData.payroll_head_max_limit !== undefined
           ? String(sourceData.payroll_head_max_limit)
-          : ''
+          : '',
       )
 
       // Applicable months
       if (sourceData.applicable_months?.length > 0) {
-        setSelectedMonths(sourceData.applicable_months.map((m: any) => String(m.month || m)))
+        setSelectedMonths(
+          sourceData.applicable_months.map((m: any) => String(m.month || m)),
+        )
         if (sourceData.applicable_months[0]?.year) {
           setSelectedYear(String(sourceData.applicable_months[0].year))
         }
@@ -177,7 +203,9 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
 
       // System heads
       const sysHeads =
-        sourceData.value_based_on_2?.map((item: any) => item.head_name).filter(Boolean) || []
+        sourceData.value_based_on_2
+          ?.map((item: any) => item.head_name)
+          .filter(Boolean) || []
       setSelectedSystemHeads(sysHeads)
 
       // Custom heads
@@ -212,19 +240,23 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
   // Helper toggle functions
   const toggleSystemHead = (headName: string) => {
     setSelectedSystemHeads((prev) =>
-      prev.includes(headName) ? prev.filter((h) => h !== headName) : [...prev, headName]
+      prev.includes(headName)
+        ? prev.filter((h) => h !== headName)
+        : [...prev, headName],
     )
   }
 
   const toggleCustomHead = (headIdVal: string) => {
     setSelectedCustomHeads((prev) =>
-      prev.includes(headIdVal) ? prev.filter((id) => id !== headIdVal) : [...prev, headIdVal]
+      prev.includes(headIdVal)
+        ? prev.filter((id) => id !== headIdVal)
+        : [...prev, headIdVal],
     )
   }
 
   const toggleMonth = (mVal: string) => {
     setSelectedMonths((prev) =>
-      prev.includes(mVal) ? prev.filter((m) => m !== mVal) : [...prev, mVal]
+      prev.includes(mVal) ? prev.filter((m) => m !== mVal) : [...prev, mVal],
     )
   }
 
@@ -250,7 +282,7 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
       toast.success(
         isEditMode
           ? `${entryType === 'benefit' ? 'Benefit' : 'Deduction'} updated successfully`
-          : `${entryType === 'benefit' ? 'Benefit' : 'Deduction'} created successfully`
+          : `${entryType === 'benefit' ? 'Benefit' : 'Deduction'} created successfully`,
       )
 
       // Instantly update parent table queries in React Query cache so the frontend reflects changes immediately
@@ -266,7 +298,7 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                 const matched = (allHeads || []).find(
                   (h: any) =>
                     String(h.payroll_head_id ?? h.id) ===
-                    String(v.related_payroll_heads_payroll_head_id)
+                    String(v.related_payroll_heads_payroll_head_id),
                 )
                 return {
                   ...v,
@@ -282,10 +314,10 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
         }
 
         queryClient.setQueryData(['payroll-benifits'], (old: any) =>
-          Array.isArray(old) ? old.map(patchItem) : old
+          Array.isArray(old) ? old.map(patchItem) : old,
         )
         queryClient.setQueryData(['payroll-deductions'], (old: any) =>
-          Array.isArray(old) ? old.map(patchItem) : old
+          Array.isArray(old) ? old.map(patchItem) : old,
         )
       }
 
@@ -323,7 +355,7 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
       toast.error(
         data.payroll_value_type === 'fixed'
           ? 'Please enter a valid fixed amount'
-          : 'Please enter a valid percentage'
+          : 'Please enter a valid percentage',
       )
       return
     }
@@ -343,7 +375,10 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
           : null,
       applicable_months:
         selectedMonths.length > 0
-          ? selectedMonths.map((m) => ({ month: Number(m), year: Number(selectedYear) }))
+          ? selectedMonths.map((m) => ({
+              month: Number(m),
+              year: Number(selectedYear),
+            }))
           : [],
       value_based_on_2:
         data.payroll_value_type === 'percentage'
@@ -351,7 +386,9 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
           : null,
       value_based_on:
         data.payroll_value_type === 'percentage'
-          ? selectedCustomHeads.map((id) => ({ related_payroll_heads_payroll_head_id: Number(id) }))
+          ? selectedCustomHeads.map((id) => ({
+              related_payroll_heads_payroll_head_id: Number(id),
+            }))
           : null,
     }
 
@@ -396,7 +433,7 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                     'flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold cursor-pointer transition-all',
                     entryType === 'benefit'
                       ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 shadow-2xs'
-                      : 'border-border bg-background hover:bg-muted text-muted-foreground'
+                      : 'border-border bg-background hover:bg-muted text-muted-foreground',
                   )}
                 >
                   <TrendingUp className="size-3.5" />
@@ -410,7 +447,7 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                     'flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold cursor-pointer transition-all',
                     entryType === 'deduction'
                       ? 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400 shadow-2xs'
-                      : 'border-border bg-background hover:bg-muted text-muted-foreground'
+                      : 'border-border bg-background hover:bg-muted text-muted-foreground',
                   )}
                 >
                   <TrendingDown className="size-3.5" />
@@ -421,12 +458,17 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
 
             {/* 2. Head / Component Name */}
             <div className="space-y-1.5">
-              <Label htmlFor="payroll_head_name" className="text-xs font-medium">
+              <Label
+                htmlFor="payroll_head_name"
+                className="text-xs font-medium"
+              >
                 Name <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="payroll_head_name"
-                {...register('payroll_head_name', { required: 'Name is required' })}
+                {...register('payroll_head_name', {
+                  required: 'Name is required',
+                })}
                 placeholder={
                   entryType === 'benefit'
                     ? 'e.g. House Rent Allowance (HRA), Dearness Allowance (DA)'
@@ -448,7 +490,7 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                       'flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold cursor-pointer transition-all',
                       valueType === 'fixed'
                         ? 'border-primary bg-primary/10 text-primary shadow-2xs'
-                        : 'border-border bg-background hover:bg-muted text-muted-foreground'
+                        : 'border-border bg-background hover:bg-muted text-muted-foreground',
                     )}
                   >
                     <IndianRupee className="size-3.5" />
@@ -462,7 +504,7 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                       'flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-semibold cursor-pointer transition-all',
                       valueType === 'percentage'
                         ? 'border-primary bg-primary/10 text-primary shadow-2xs'
-                        : 'border-border bg-background hover:bg-muted text-muted-foreground'
+                        : 'border-border bg-background hover:bg-muted text-muted-foreground',
                     )}
                   >
                     <Percent className="size-3.5" />
@@ -484,8 +526,12 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                     id="payroll_value"
                     type="number"
                     step="any"
-                    placeholder={valueType === 'fixed' ? 'e.g. 5000' : 'e.g. 12'}
-                    {...register('payroll_value', { required: 'Please enter value' })}
+                    placeholder={
+                      valueType === 'fixed' ? 'e.g. 5000' : 'e.g. 12'
+                    }
+                    {...register('payroll_value', {
+                      required: 'Please enter value',
+                    })}
                     className="h-9 pl-7 text-xs bg-background"
                   />
                 </div>
@@ -495,11 +541,16 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
               {entryType === 'deduction' && (
                 <div className="space-y-1.5 pt-2 border-t border-border/60">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="max_limit" className="text-xs font-medium flex items-center gap-1.5">
+                    <Label
+                      htmlFor="max_limit"
+                      className="text-xs font-medium flex items-center gap-1.5"
+                    >
                       <ShieldAlert className="size-3.5 text-amber-600" />
                       Maximum Deduction Amount in Rs.
                     </Label>
-                    <span className="text-[11px] text-muted-foreground">Optional Cap</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      Optional Cap
+                    </span>
                   </div>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
@@ -527,7 +578,8 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                     Calculate Based On (System)
                   </Label>
                   <p className="text-[11px] text-muted-foreground">
-                    Select system-calculated components to base this percentage on.
+                    Select system-calculated components to base this percentage
+                    on.
                   </p>
                 </div>
 
@@ -542,7 +594,7 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                           'flex flex-col p-2.5 rounded-md border cursor-pointer transition-all',
                           isChecked
                             ? 'border-primary/50 bg-primary/5 text-foreground shadow-2xs'
-                            : 'border-border bg-background hover:bg-muted/50 text-muted-foreground'
+                            : 'border-border bg-background hover:bg-muted/50 text-muted-foreground',
                         )}
                       >
                         <div className="flex items-center gap-2">
@@ -550,7 +602,9 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                             checked={isChecked}
                             onCheckedChange={() => toggleSystemHead(sh.value)}
                           />
-                          <span className="text-xs font-semibold">{sh.label}</span>
+                          <span className="text-xs font-semibold">
+                            {sh.label}
+                          </span>
                         </div>
                         <span className="text-[10px] text-muted-foreground mt-0.5 ml-6">
                           {sh.helpText}
@@ -567,9 +621,7 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                     onClick={() => setOpenApplicableHeads((v) => !v)}
                     className="flex w-full items-center justify-between p-3 text-xs font-medium bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
                   >
-                    <span>
-                      Link Other Heads ({selectedCustomHeads.length})
-                    </span>
+                    <span>Link Other Heads ({selectedCustomHeads.length})</span>
                     {openApplicableHeads ? (
                       <ChevronUp className="size-4 text-muted-foreground" />
                     ) : (
@@ -580,7 +632,9 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                   {openApplicableHeads && (
                     <div className="p-3 border-t border-border space-y-2 max-h-48 overflow-y-auto">
                       {loadingHeads ? (
-                        <p className="text-xs text-muted-foreground">Loading payroll heads...</p>
+                        <p className="text-xs text-muted-foreground">
+                          Loading payroll heads...
+                        </p>
                       ) : customHeadChoices.length === 0 ? (
                         <p className="text-xs text-muted-foreground italic">
                           No other payroll heads available.
@@ -588,7 +642,9 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {customHeadChoices.map((ch) => {
-                            const isChecked = selectedCustomHeads.includes(ch.value)
+                            const isChecked = selectedCustomHeads.includes(
+                              ch.value,
+                            )
                             return (
                               <label
                                 key={ch.value}
@@ -596,15 +652,19 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                                   'flex items-center justify-between p-2 rounded-md border text-xs cursor-pointer transition-colors',
                                   isChecked
                                     ? 'border-primary/50 bg-primary/5 text-foreground'
-                                    : 'border-border hover:bg-muted/40 text-muted-foreground'
+                                    : 'border-border hover:bg-muted/40 text-muted-foreground',
                                 )}
                               >
                                 <div className="flex items-center gap-2 truncate pr-1">
                                   <Checkbox
                                     checked={isChecked}
-                                    onCheckedChange={() => toggleCustomHead(ch.value)}
+                                    onCheckedChange={() =>
+                                      toggleCustomHead(ch.value)
+                                    }
                                   />
-                                  <span className="truncate font-medium">{ch.label}</span>
+                                  <span className="truncate font-medium">
+                                    {ch.label}
+                                  </span>
                                 </div>
                                 <span className="text-[10px] text-muted-foreground shrink-0">
                                   {ch.helpText}
@@ -635,11 +695,15 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                     className={cn(
                       'flex items-center justify-center py-2 px-3 rounded-lg border text-xs font-semibold cursor-pointer transition-all',
                       attnType === aType
-                        ? 'border-orange-500 bg-orange-500/10 text-orange-700 dark:text-orange-400 shadow-2xs'
-                        : 'border-border bg-background hover:bg-muted text-muted-foreground'
+                        ? 'border-[#6f9ff1] bg-[#6f9ff1]/10 text-orange-700 dark:text-orange-400 shadow-2xs'
+                        : 'border-border bg-background hover:bg-muted text-muted-foreground',
                     )}
                   >
-                    <span>{aType === 'on_attendance' ? 'On Attendance' : 'Flat Rate'}</span>
+                    <span>
+                      {aType === 'on_attendance'
+                        ? 'On Attendance'
+                        : 'Flat Rate'}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -655,7 +719,11 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                 <div className="flex items-center gap-2">
                   <Calendar className="size-3.5 text-primary" />
                   <span>
-                    Applicable Months ({selectedMonths.length === 0 ? 'All 12 Months' : `${selectedMonths.length} Months Selected`})
+                    Applicable Months (
+                    {selectedMonths.length === 0
+                      ? 'All 12 Months'
+                      : `${selectedMonths.length} Months Selected`}
+                    )
                   </span>
                 </div>
                 {openMonths ? (
@@ -688,7 +756,9 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                       onClick={toggleAllMonths}
                       className="text-[11px] text-primary hover:underline cursor-pointer font-medium"
                     >
-                      {selectedMonths.length === MONTH_CHOICES.length ? 'Clear All' : 'Select All Months'}
+                      {selectedMonths.length === MONTH_CHOICES.length
+                        ? 'Clear All'
+                        : 'Select All Months'}
                     </button>
                   </div>
 
@@ -702,7 +772,7 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
                             'flex items-center gap-2 p-1.5 rounded-md border cursor-pointer transition-colors',
                             isChecked
                               ? 'border-primary/50 bg-primary/5 text-foreground font-medium'
-                              : 'border-border hover:bg-muted/40 text-muted-foreground'
+                              : 'border-border hover:bg-muted/40 text-muted-foreground',
                           )}
                         >
                           <Checkbox
@@ -745,7 +815,9 @@ export const PayrollHeadModal: React.FC<PayrollHeadSheetProps> = ({
               ) : (
                 <>
                   <Save className="size-3.5" />
-                  <span>{isEditMode ? `Update ${entryType}` : `Add ${entryType}`}</span>
+                  <span>
+                    {isEditMode ? `Update ${entryType}` : `Add ${entryType}`}
+                  </span>
                 </>
               )}
             </Button>

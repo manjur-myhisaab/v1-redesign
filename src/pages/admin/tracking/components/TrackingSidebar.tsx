@@ -10,10 +10,19 @@ import {
   ExternalLink,
   X,
   User,
+  Clock,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -21,9 +30,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { EmployeeAvatar } from '@/lib/people'
 import { cn } from '@/lib/utils'
 import { formatLastSeen } from '../utils/firmResolver'
-import { getFullAvatarUrl } from '../utils/markerIconBuilder'
 import type { TrackingEmployee, EmployeeCategory } from '../types'
 
 interface TrackingSidebarProps {
@@ -106,7 +115,7 @@ export const TrackingSidebar: React.FC<TrackingSidebarProps> = ({
         isCollapsed ? 'w-14' : 'w-80 sm:w-96'
       )}
     >
-      {/* Floating Collapse / Expand Toggle Button - Positioned over the boundary */}
+      {/* Floating Collapse / Expand Toggle Button */}
       <button
         type="button"
         onClick={() => setIsCollapsed(!isCollapsed)}
@@ -160,7 +169,7 @@ export const TrackingSidebar: React.FC<TrackingSidebarProps> = ({
                 title="Collapse Sidebar"
                 className="size-6 text-muted-foreground hover:text-foreground cursor-pointer"
               >
-                <ChevronLeft className="size-3.5" />
+                
               </Button>
             </div>
 
@@ -213,6 +222,7 @@ export const TrackingSidebar: React.FC<TrackingSidebarProps> = ({
               />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() => setSearchQuery('')}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                 >
@@ -263,55 +273,55 @@ export const TrackingSidebar: React.FC<TrackingSidebarProps> = ({
             </div>
           </div>
 
-          {/* Scrollable Employee List */}
-          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-border/60">
+          {/* Scrollable Employee Cards List */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5">
             {filteredList.length === 0 ? (
-              <div className="p-8 text-center text-xs text-muted-foreground space-y-1">
-                <User className="size-8 mx-auto text-muted-foreground/40 mb-2" />
-                <p className="font-semibold text-foreground">No staff members found</p>
-                <p className="text-[11px]">Try adjusting your search or category filter</p>
-              </div>
+              <Card className="p-8 text-center border-dashed">
+                <CardContent className="p-0 space-y-1">
+                  <User className="size-8 mx-auto text-muted-foreground/40 mb-2" />
+                  <p className="font-semibold text-xs text-foreground">No staff members found</p>
+                  <p className="text-[11px] text-muted-foreground">Try adjusting your search or category filter</p>
+                </CardContent>
+              </Card>
             ) : (
               filteredList.map((emp) => {
                 const isSelected = String(emp.id) === String(selectedEmployeeId)
                 const hasGps = Boolean(emp.current_lat && emp.current_long)
                 const isLiveOn = emp.live_tracking !== false
                 const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || 'Staff Member'
-                const avatarSrc = getFullAvatarUrl(emp.avatar)
                 const lastSeenText = formatLastSeen(emp.current_last_seen)
 
                 const rawBat = emp.battery_percentage ? parseFloat(String(emp.battery_percentage)) : null
                 const batVal = rawBat !== null ? (rawBat > 1 ? Math.round(rawBat) : Math.round(rawBat * 100)) : null
 
                 return (
-                  <div
+                  <Card
                     key={String(emp.id)}
                     onClick={() => onSelectEmployee(String(emp.id))}
                     className={cn(
-                      'p-3 hover:bg-muted/50 transition-colors cursor-pointer group space-y-2',
-                      isSelected && 'bg-primary/5 border-l-2 border-primary'
+                      'gap-2.5 p-3 transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-xs group',
+                      isSelected
+                        ? 'border-primary bg-primary/[0.04] ring-1.5 ring-primary/40 shadow-xs'
+                        : 'border-border/80 bg-card hover:border-primary/40 hover:bg-card/90'
                     )}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      {/* Avatar & User Details */}
+                    {/* Header: Avatar, Name, Category/Title, Badge */}
+                    <CardHeader className="p-0 flex flex-row items-start justify-between gap-2 space-y-0">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="relative shrink-0">
-                          <img
-                            src={avatarSrc}
-                            alt={fullName}
-                            className="size-9 rounded-full object-cover border border-border shadow-2xs"
-                            onError={(e) => {
-                              ;(e.target as HTMLImageElement).src =
-                                'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
-                            }}
+                          <EmployeeAvatar
+                            name={fullName}
+                            employeeId={String(emp.id)}
+                            avatar={emp.avatar}
+                            className="size-9 rounded-full"
                           />
                           <span
                             className={cn(
-                              'absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background',
+                              'absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background ring-1 ring-border/20',
                               hasGps && isLiveOn
-                                ? 'bg-emerald-500'
+                                ? 'bg-emerald-500 ring-emerald-500/30 animate-pulse'
                                 : isLiveOn
-                                ? 'bg-amber-500'
+                                ? 'bg-amber-500 ring-amber-500/30'
                                 : 'bg-slate-400'
                             )}
                             title={isLiveOn ? (hasGps ? 'GPS Active' : 'Live ON (No GPS)') : 'Live OFF'}
@@ -319,102 +329,124 @@ export const TrackingSidebar: React.FC<TrackingSidebarProps> = ({
                         </div>
 
                         <div className="min-w-0">
-                          <p className="font-semibold text-xs text-foreground truncate group-hover:text-primary transition-colors">
+                          <CardTitle className="text-xs font-semibold text-foreground truncate group-hover:text-primary transition-colors">
                             {fullName}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground truncate">
-                            {emp.title || emp.category_name || emp.department_name || 'Staff'}
-                          </p>
+                          </CardTitle>
+                          <CardDescription className="text-[10px] text-muted-foreground truncate mt-0.5">
+                            {emp.title || emp.category_name || emp.department_name || 'Staff Member'}
+                          </CardDescription>
                         </div>
                       </div>
 
-                      {/* GPS Status Badge */}
-                      <div className="shrink-0 flex flex-col items-end gap-1">
+                      {/* Status Badge */}
+                      <div className="shrink-0">
                         {hasGps ? (
                           <Badge
                             variant="secondary"
-                            className="text-[10px] font-medium py-0 px-1.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
+                            className="text-[10px] font-semibold py-0.5 px-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-full flex items-center gap-1"
                           >
-                            Located
+                            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            GPS
+                          </Badge>
+                        ) : isLiveOn ? (
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] font-medium py-0.5 px-2 bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 rounded-full"
+                          >
+                            No GPS
                           </Badge>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground">No GPS</span>
-                        )}
-                        <span className="text-[9px] text-muted-foreground">{lastSeenText}</span>
-                      </div>
-                    </div>
-
-                    {/* Telemetry Bar: Battery, Movement, Address */}
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/40">
-                      <div className="flex items-center gap-2.5">
-                        {batVal !== null && (
-                          <span
-                            className={cn(
-                              'flex items-center gap-1 font-medium',
-                              batVal < 20
-                                ? 'text-rose-600'
-                                : batVal < 50
-                                ? 'text-amber-600'
-                                : 'text-emerald-600'
-                            )}
-                          >
-                            <Battery className="size-3" />
-                            {batVal}%
+                          <span className="text-[10px] text-muted-foreground font-medium px-1.5 py-0.5 rounded-md bg-muted border border-border/50">
+                            Offline
                           </span>
                         )}
+                      </div>
+                    </CardHeader>
 
-                        {emp.is_moving !== undefined && emp.is_moving !== null && (
-                          <span className="flex items-center gap-1">
+                    {/* Telemetry Bar: Battery, Movement, Last Seen */}
+                    <CardContent className="p-0 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground bg-muted/40 rounded-lg px-2.5 py-1.5 border border-border/40">
+                        <div className="flex items-center gap-2">
+                          {batVal !== null && (
                             <span
                               className={cn(
-                                'size-1.5 rounded-full',
-                                emp.is_moving ? 'bg-emerald-500' : 'bg-muted-foreground'
+                                'flex items-center gap-1 font-semibold text-[10px]',
+                                batVal < 20
+                                  ? 'text-rose-600'
+                                  : batVal < 50
+                                  ? 'text-amber-600'
+                                  : 'text-emerald-600'
                               )}
-                            />
-                            {emp.is_moving ? 'Moving' : 'Stationary'}
-                          </span>
-                        )}
+                              title={`Battery: ${batVal}%`}
+                            >
+                              <Battery className="size-3" />
+                              {batVal}%
+                            </span>
+                          )}
+
+                          {emp.is_moving !== undefined && emp.is_moving !== null && (
+                            <span className="flex items-center gap-1 text-[10px] font-medium text-foreground">
+                              <span
+                                className={cn(
+                                  'size-1.5 rounded-full',
+                                  emp.is_moving ? 'bg-emerald-500' : 'bg-muted-foreground'
+                                )}
+                              />
+                              {emp.is_moving ? 'Moving' : 'Stationary'}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground/90 shrink-0">
+                          <Clock className="size-2.5" />
+                          <span>{lastSeenText}</span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-1">
-                        {hasGps && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-5 px-1.5 text-[10px] text-primary hover:bg-primary/10 gap-0.5"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onSelectEmployee(String(emp.id))
-                            }}
-                          >
-                            <Crosshair className="size-2.5" />
-                            Locate
-                          </Button>
-                        )}
+                      {/* Geo Address if available */}
+                      {emp.last_geo_address && (
+                        <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground px-0.5">
+                          <MapPin className="size-3 shrink-0 text-muted-foreground/70 mt-0.5" />
+                          <span className="line-clamp-1 leading-tight">{emp.last_geo_address}</span>
+                        </div>
+                      )}
+                    </CardContent>
+
+                    {/* Footer Actions: Locate & View Staff Profile */}
+                    <CardFooter className="p-0 pt-1 border-t border-border/40 flex items-center justify-between gap-2">
+                      {hasGps ? (
                         <Button
                           type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-5 text-muted-foreground hover:text-foreground"
-                          title="View Profile"
+                          variant="outline"
+                          size="sm"
+                          className="h-6.5 px-2 text-[11px] font-medium text-primary hover:text-primary hover:bg-primary/10 border-primary/20 gap-1 cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation()
-                            onViewProfile(emp.id)
+                            onSelectEmployee(String(emp.id))
                           }}
                         >
-                          <ExternalLink className="size-2.5" />
+                          <Crosshair className="size-3" />
+                          <span>Locate</span>
                         </Button>
-                      </div>
-                    </div>
+                      ) : (
+                        <div />
+                      )}
 
-                    {emp.last_geo_address && (
-                      <p className="text-[10px] text-muted-foreground truncate leading-tight flex items-center gap-1">
-                        <MapPin className="size-2.5 shrink-0 text-muted-foreground/70" />
-                        <span className="truncate">{emp.last_geo_address}</span>
-                      </p>
-                    )}
-                  </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6.5 px-2 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted gap-1 ml-auto cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onViewProfile(emp.id)
+                        }}
+                      >
+                        <span>View Staff Profile</span>
+                        <ExternalLink className="size-3" />
+                      </Button>
+                    </CardFooter>
+                  </Card>
                 )
               })
             )}

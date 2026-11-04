@@ -89,7 +89,11 @@ export default function UserPerDayAttendanceModal({
     };
 
     // 1. Fetch Day Attendance Punches
-    const { data: attendancePunches = [], isLoading: punchesLoading } = useQuery({
+    const {
+        data: attendancePunches = [],
+        isLoading: punchesLoading,
+        refetch: refetchPunches,
+    } = useQuery({
         queryKey: ['day-attendance-punches', empId, dateStr],
         queryFn: async () => {
             const start = `${dateStr}T00:00:00`;
@@ -254,9 +258,13 @@ export default function UserPerDayAttendanceModal({
                                     date={currentDate}
                                     singleData={editingRecord}
                                     formType={editingRecord ? 'edit' : 'add'}
+                                    onSuccess={() => {
+                                        refetchPunches();
+                                    }}
                                     onClose={() => {
                                         setIsFormOpen(false);
                                         setEditingRecord(null);
+                                        refetchPunches();
                                     }}
                                 />
                             </div>

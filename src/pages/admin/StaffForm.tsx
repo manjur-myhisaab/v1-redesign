@@ -16,7 +16,9 @@ import {
   Clock,
   Wallet,
   ChevronDown,
-  X
+  X,
+  Eye,
+  Download
 } from 'lucide-react'
 
 import Panel from '@/components/admin/Panel'
@@ -44,6 +46,17 @@ import { cn } from '@/lib/utils'
 import PersonAvatar from '@/components/admin/PersonAvatar'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import rdk, { customEndpoint, readItems, API_URL, uploadFiles } from '@/services/server'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import ImageLightbox from '@/components/ui/image-lightbox'
 import {
   Sheet,
   SheetContent,
@@ -91,6 +104,11 @@ const MARITAL_STATUSES = ['Single', 'Married', 'Divorced', 'Widowed']
 const COUNTRIES = ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'United Arab Emirates']
 const CATEGORIES = ["Sales", "Operations", "HR", "Finance", "Marketing"] as const
 
+// Directus Role UUIDs
+export const ROLE_EMPLOYEE = '69a38aea-61ab-4d48-8d3d-1b3a9f78360a'
+export const ROLE_ADMIN = 'bb64d3fd-5fde-4493-9cb7-bf6be2031d82'
+export const ROLE_MANAGER = '8734320f-991f-479f-bba8-9d4af261856e'
+
 // Zod Schema — Only first_name and mobile_number are required for now
 const employeeFormSchema = z
   .object({
@@ -134,13 +152,18 @@ const DEFAULT_VALUES = {
   gender: 'Male',
   employee_code: '',
   department_name: '',
+  title: '',
   designation_id: '',
-  role: 'Employee',
+  role: ROLE_EMPLOYEE,
+  employee_category_id: null as string | number | null,
+  other_category_ids: [] as any[],
   select_category: 'Sales',
   manage_other_categories: [],
   view_other_managers: false,
+  can_view_manager: false,
   custom_designation: '',
   super_admin_access: false,
+  is_admin: false,
   supervisor_id: '',
 
   live_tracking: false,
@@ -153,13 +176,17 @@ const DEFAULT_VALUES = {
   ai_selfie_verification: false,
   punch_from: 'Geofence',
   shift_alignment_type: 'Fixed',
+  shift_type: 'fixed',
   leave_template: 'none',
+  assigned_leave_template: null as string | number | null,
+  leaves: [] as any[],
 
   casual_leaves: 0,
   sick_leaves: 0,
   privilege_leaves: 0,
   emergency_leave: 0,
 
+  salary: '25000.0',
   salary_per_month: '25000.0',
   pay_type: 'Monthly',
   week_off_extra_payment: true,
@@ -170,11 +197,16 @@ const DEFAULT_VALUES = {
   week_off_day_number: 0,
   week_off_day: 'Sunday',
   applicable_for_overtime: true,
+  overtime_hours: '0',
+  overtime_minutes: '1',
   overtime_starts_after_hours: '0',
   overtime_starts_after_minutes: '1',
   auto_overtime: true,
   view_self_salary: true,
+  can_view_self_salary: true,
   payroll_template: 'none',
+  payroll_template_id: null as string | number | null,
+  payroll_heads: [] as any[],
   overtime_hourly_rate: '0',
   inactive_date: null as string | null,
   country: null as string | null,
@@ -294,12 +326,13 @@ export default function StaffForm() {
   })
 
   const { data: dbPayrollTemplates = [] } = useQuery({
-    queryKey: ['payroll_templates_list'],
+    queryKey: ['payroll_templates'],
     queryFn: async () => {
       try {
-        const res: any = await rdk.request(readItems('payroll_templates', { fields: ['*'] }))
+        const res: any = await rdk.request(readItems('payroll_templates'))
         return Array.isArray(res) ? res : res?.data || []
       } catch (e) {
+        console.error('Failed to fetch payroll_templates:', e)
         return []
       }
     },
@@ -338,7 +371,7 @@ export default function StaffForm() {
       try {
         const res: any = await rdk.request(
           readItems('payroll_heads', {
-            fields: ['*'],
+            fields: ['*', 'value_based_on.related_payroll_heads_payroll_head_id.*'],
             filter: { payroll_type: { _eq: 'benefit' } },
           })
         )
@@ -356,7 +389,7 @@ export default function StaffForm() {
       try {
         const res: any = await rdk.request(
           readItems('payroll_heads', {
-            fields: ['*'],
+            fields: ['*', 'value_based_on.related_payroll_heads_payroll_head_id.*'],
             filter: { payroll_type: { _eq: 'deduction' } },
           })
         )
@@ -369,6 +402,7 @@ export default function StaffForm() {
   })
 
   // Comparison refs for tracking genuinely modified relational fields on edit
+  const initialValuesRef = useRef<any>({})
   const initialSelectedShiftIdsRef = useRef<string[]>([])
   const initialWeeklyShiftsRef = useRef<Record<string, string[]>>({
     Monday: [], Tuesday: [], Wednesday: [], Thursday: [], Friday: [], Saturday: [], Sunday: []
@@ -393,30 +427,20 @@ export default function StaffForm() {
   // Document Uploads State matching the screenshots layout
   const [savedDocuments, setSavedDocuments] = useState<UploadedFileItem[]>([])
   const [tempUploads, setTempUploads] = useState<UploadedFileItem[]>([])
+  const [documentsDirty, setDocumentsDirty] = useState(false)
 
   // Face Images States matching the screenshots layout
   const [savedFaceImages, setSavedFaceImages] = useState<UploadedFileItem[]>([])
   const [tempFaceImages, setTempFaceImages] = useState<UploadedFileItem[]>([])
+  const [faceImagesDirty, setFaceImagesDirty] = useState(false)
   const [isDraggingFace, setIsDraggingFace] = useState(false)
 
   // Payroll configuration accordion and selected checkbox states
   const [benefitsExpanded, setBenefitsExpanded] = useState(false)
   const [deductionsExpanded, setDeductionsExpanded] = useState(false)
 
-  const [benefits, setBenefits] = useState<{ id: any; label: string; selected: boolean }[]>([
-    { id: 'basic', label: 'Basic Salary', selected: true },
-    { id: 'hra', label: 'HRA (House Rent Allowance)', selected: true },
-    { id: 'special', label: 'Special Allowance', selected: true },
-    { id: 'conveyance', label: 'Conveyance Allowance', selected: false },
-    { id: 'medical', label: 'Medical Allowance', selected: false }
-  ])
-
-  const [deductions, setDeductions] = useState<{ id: any; label: string; selected: boolean }[]>([
-    { id: 'pf', label: 'Provident Fund (PF)', selected: true },
-    { id: 'esi', label: 'Employee State Insurance (ESI)', selected: true },
-    { id: 'pt', label: 'Professional Tax', selected: false },
-    { id: 'tds', label: 'Tax Deducted at Source (TDS)', selected: false }
-  ])
+  const [benefits, setBenefits] = useState<{ id: any; label: string; helpText?: string; selected: boolean }[]>([])
+  const [deductions, setDeductions] = useState<{ id: any; label: string; helpText?: string; selected: boolean }[]>([])
 
   const selectedBenefitsCount = benefits.filter(b => b.selected).length
   const selectedDeductionsCount = deductions.filter(d => d.selected).length
@@ -450,11 +474,13 @@ export default function StaffForm() {
     control,
     watch,
     setValue,
+    getValues,
     reset,
     formState: { errors, dirtyFields },
   } = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema) as any,
     defaultValues: DEFAULT_VALUES as any,
+    shouldUnregister: false,
   })
 
   // Exact V1 Staff Data Population
@@ -470,7 +496,7 @@ export default function StaffForm() {
       return parsed.toISOString().slice(0, 10)
     }
 
-    reset({
+    const newValues = {
       first_name: e.first_name || '',
       last_name: e.last_name || '',
       mobile_number: e.mobile_number || (e.email ? e.email.replace('91', '').split('@')[0] : ''),
@@ -497,8 +523,9 @@ export default function StaffForm() {
       gender: e.gender || 'Male',
       employee_code: e.employee_code || '',
       department_name: e.department_name || '',
+      title: e.title || '',
       designation_id: e.designation_id ? String(e.designation_id) : '',
-      role: (Array.isArray(rolesData) && rolesData.length > 0 ? rolesData[0] : rolesData) || 'Employee',
+      role: (Array.isArray(rolesData) && rolesData.length > 0 ? rolesData[0] : rolesData) || ROLE_EMPLOYEE,
       supervisor_id: e.supervisor_id || '',
       country: e.country || null,
       password: '',
@@ -513,24 +540,28 @@ export default function StaffForm() {
       ai_selfie_verification: e.ai_selfie_verification ?? false,
       punch_from: e.punch_from
         ? e.punch_from.charAt(0).toUpperCase() + e.punch_from.slice(1)
-        : 'Anywhere',
+        : 'Geofence',
       shift_alignment_type: e.shift_type
         ? e.shift_type.charAt(0).toUpperCase() + e.shift_type.slice(1)
         : 'Fixed',
+      shift_type: (e.shift_type || 'fixed').toLowerCase(),
       // Leaves
       leave_template: e.assigned_leave_template ? String(e.assigned_leave_template) : 'none',
+      assigned_leave_template: e.assigned_leave_template ? String(e.assigned_leave_template) : null,
+      leaves: e.leaves || [],
       casual_leaves: e.casual_leaves != null ? Number(e.casual_leaves) : 0,
       sick_leaves: e.sick_leaves != null ? Number(e.sick_leaves) : 0,
       privilege_leaves: e.privilege_leaves != null ? Number(e.privilege_leaves) : 0,
       emergency_leave: e.emergency_leave != null ? Number(e.emergency_leave) : 0,
       // Payroll
+      salary: `${e.salary_per_month || 0}.${e.salary_per_month_after_decimal || 0}`,
       salary_per_month: `${e.salary_per_month || 0}.${e.salary_per_month_after_decimal || 0}`,
-      pay_type: e.pay_type
-        ? e.pay_type.charAt(0).toUpperCase() + e.pay_type.slice(1)
-        : 'Monthly',
+      pay_type: e.pay_type || 'Monthly',
       applicable_for_overtime: e.applicable_for_overtime ?? false,
       auto_overtime: e.auto_overtime ?? false,
-      overtime_hourly_rate: e.overtime_hourly_rate ? String(e.overtime_hourly_rate) : '0',
+      overtime_hourly_rate: e.overtime_hourly_rate ? String(Math.floor(e.overtime_hourly_rate)) : '0',
+      overtime_hours: e.overtime_hours ? String(e.overtime_hours) : '0',
+      overtime_minutes: e.overtime_minutes ? String(e.overtime_minutes) : '0',
       overtime_starts_after_hours: e.overtime_hours ? String(e.overtime_hours) : '0',
       overtime_starts_after_minutes: e.overtime_minutes ? String(e.overtime_minutes) : '0',
       week_off_extra_payment: e.week_off_payment ?? false,
@@ -543,14 +574,24 @@ export default function StaffForm() {
         ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][e.week_off_day_number] ?? 'Sunday'
         : 'Sunday',
       view_self_salary: e.can_view_self_salary ?? false,
+      can_view_self_salary: e.can_view_self_salary ?? false,
+      employee_category_id: e.employee_category_id ? String(e.employee_category_id) : '',
       select_category: e.employee_category_id ? String(e.employee_category_id) : 'Sales',
+      other_category_ids: (e.other_category_ids || []).map((item: any) => item.employee_category_employee_category_id || item),
       manage_other_categories: (e.other_category_ids || []).map((item: any) => item.employee_category_employee_category_id || item),
       view_other_managers: e.can_view_manager ?? false,
+      can_view_manager: e.can_view_manager ?? false,
       custom_designation: '',
       super_admin_access: e.is_admin ?? false,
+      is_admin: e.is_admin ?? false,
       payroll_template: e.payroll_template_id ? String(e.payroll_template_id) : 'none',
+      payroll_template_id: e.payroll_template_id ? String(e.payroll_template_id) : 'none',
       inactive_date: e.inactive_date ? parseDateStr(e.inactive_date) : null,
-    })
+      inactive_date: e.inactive_date ? parseDateStr(e.inactive_date) : null,
+    }
+
+    reset(newValues)
+    initialValuesRef.current = { ...newValues }
 
     const staffShiftIds = (e?.shift_ids || []).map((item: any) =>
       String(item.shift_shift_id?.shift_id || item.shift_shift_id || item.id || item)
@@ -583,23 +624,30 @@ export default function StaffForm() {
     }
 
     if (e?.face_images && Array.isArray(e.face_images)) {
-      setSavedFaceImages(e.face_images.map((f: any, idx: number) => ({
-        id: `face-${f.directus_files_id || f.id || idx}`,
-        name: `face_${idx + 1}.png`,
-        size: '120 KB',
-        url: `${API_URL}/assets/${f.directus_files_id || f.id}`,
-        isImage: true,
-      })))
+      setSavedFaceImages(e.face_images.map((f: any, idx: number) => {
+        const rawId = typeof f.directus_files_id === 'object' ? (f.directus_files_id?.id || f.directus_files_id) : (f.directus_files_id || f.id)
+        return {
+          id: `face-${rawId}`,
+          name: `face_${idx + 1}.png`,
+          size: '120 KB',
+          url: `${API_URL}/assets/${rawId}`,
+          isImage: true,
+        }
+      }))
     }
 
     if (e?.documents && Array.isArray(e.documents)) {
-      setSavedDocuments(e.documents.map((d: any, idx: number) => ({
-        id: `doc-${d.directus_files_id || d.id || idx}`,
-        name: d.title || `document_${idx + 1}.pdf`,
-        size: '250 KB',
-        url: `${API_URL}/assets/${d.directus_files_id || d.id}`,
-        isImage: false,
-      })))
+      setSavedDocuments(e.documents.map((d: any, idx: number) => {
+        const rawId = typeof d.directus_files_id === 'object' ? (d.directus_files_id?.id || d.directus_files_id) : (d.directus_files_id || d.id)
+        const isImg = d.type?.includes('image') || (d.filename_download && /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(d.filename_download))
+        return {
+          id: `doc-${rawId}`,
+          name: d.title || d.filename_download || `document_${idx + 1}`,
+          size: '250 KB',
+          url: `${API_URL}/assets/${rawId}`,
+          isImage: Boolean(isImg),
+        }
+      }))
     }
   }, [staffById, reset])
 
@@ -626,11 +674,22 @@ export default function StaffForm() {
       Number(item.payroll_heads_payroll_head_id?.payroll_head_id || item.payroll_heads_payroll_head_id || item.id || item)
     )
     setBenefits(
-      dbBenefits.map((b: any) => ({
-        id: Number(b.payroll_head_id || b.id),
-        label: b.head_name || b.name,
-        selected: staffHeadIds.includes(Number(b.payroll_head_id || b.id)),
-      }))
+      dbBenefits.map((b: any) => {
+        const headId = Number(b.payroll_head_id || b.id)
+        const headName = b.payroll_head_name || b.head_name || b.name || `Head #${headId}`
+        const helpText = b.payroll_value_type === 'fixed'
+          ? `₹${b.payroll_value} Fixed Amount`
+          : b.payroll_value ? `${b.payroll_value}% of ${[
+              ...(b.value_based_on?.map((item: any) => item.related_payroll_heads_payroll_head_id?.payroll_head_name) || []),
+              ...(b.value_based_on_2?.map((item: any) => item.head_name) || [])
+            ].filter(Boolean).join(', ')}` : ''
+        return {
+          id: headId,
+          label: headName,
+          helpText,
+          selected: staffHeadIds.includes(headId),
+        }
+      })
     )
   }, [dbBenefits, staffById])
 
@@ -641,11 +700,22 @@ export default function StaffForm() {
       Number(item.payroll_heads_payroll_head_id?.payroll_head_id || item.payroll_heads_payroll_head_id || item.id || item)
     )
     setDeductions(
-      dbDeductions.map((d: any) => ({
-        id: Number(d.payroll_head_id || d.id),
-        label: d.head_name || d.name,
-        selected: staffHeadIds.includes(Number(d.payroll_head_id || d.id)),
-      }))
+      dbDeductions.map((d: any) => {
+        const headId = Number(d.payroll_head_id || d.id)
+        const headName = d.payroll_head_name || d.head_name || d.name || `Head #${headId}`
+        const helpText = d.payroll_value_type === 'fixed'
+          ? `₹${d.payroll_value} Fixed Amount`
+          : d.payroll_value ? `${d.payroll_value}% of ${[
+              ...(d.value_based_on?.map((item: any) => item.related_payroll_heads_payroll_head_id?.payroll_head_name) || []),
+              ...(d.value_based_on_2?.map((item: any) => item.head_name) || [])
+            ].filter(Boolean).join(', ')}` : ''
+        return {
+          id: headId,
+          label: headName,
+          helpText,
+          selected: staffHeadIds.includes(headId),
+        }
+      })
     )
   }, [dbDeductions, staffById])
 
@@ -689,33 +759,45 @@ export default function StaffForm() {
       // 2. Face images upload
       const existingFaceIds = savedFaceImages
         .filter((f) => !f.id.startsWith('temp-'))
-        .map((f) => ({ directus_files_id: f.id.replace('face-', '') }))
+        .map((f) => {
+          const rawId = f.id.replace(/^face-/, '')
+          return { directus_files_id: rawId }
+        })
       const newFaceFiles = tempFaceImages.map((f: any) => f.file).filter(Boolean)
 
-      try {
-        if (newFaceFiles.length > 0) {
-          const uploadedIds = await uploadFiles(newFaceFiles)
+      const isFaceModified = faceImagesDirty || newFaceFiles.length > 0 || savedFaceImages.length !== (staffById?.face_images?.length || 0)
+      if (!isPartialEdit || isFaceModified) {
+        try {
+          let uploadedIds: string[] = []
+          if (newFaceFiles.length > 0) {
+            uploadedIds = await uploadFiles(newFaceFiles)
+          }
           faceImageIds = [
             ...existingFaceIds,
             ...uploadedIds.map((fileId) => ({ directus_files_id: fileId })),
           ]
-        } else if (!isPartialEdit || dirtyFields?.face_images) {
-          faceImageIds = existingFaceIds
+        } catch (error) {
+          console.error('Face images upload failed:', error)
+          throw new Error('Failed to upload face images')
         }
-      } catch (error) {
-        console.error('Face images upload failed:', error)
-        throw new Error('Failed to upload face images')
       }
 
       // 3. Documents upload
       const existingDocs = savedDocuments
         .filter((d) => !d.id.startsWith('bulk-doc-'))
-        .map((d) => ({ directus_files_id: d.id.replace('doc-', '') }))
+        .map((d) => {
+          const rawId = d.id.replace(/^doc-/, '')
+          return { directus_files_id: rawId }
+        })
       const newDocFiles = tempUploads.map((d: any) => d.file).filter(Boolean)
 
-      if (newDocFiles.length > 0) {
+      const isDocsModified = documentsDirty || newDocFiles.length > 0 || savedDocuments.length !== (staffById?.documents?.length || 0)
+      if (!isPartialEdit || isDocsModified) {
         try {
-          const uploadedIds = await uploadFiles(newDocFiles)
+          let uploadedIds: string[] = []
+          if (newDocFiles.length > 0) {
+            uploadedIds = await uploadFiles(newDocFiles)
+          }
           documentIds = [
             ...existingDocs,
             ...uploadedIds.map((fileId) => ({ directus_files_id: fileId })),
@@ -724,8 +806,6 @@ export default function StaffForm() {
           console.error('Document upload failed:', error)
           throw new Error('Failed to upload documents')
         }
-      } else if (!isPartialEdit || dirtyFields?.documents) {
-        documentIds = existingDocs
       }
 
       let payload: any = {}
@@ -734,22 +814,60 @@ export default function StaffForm() {
         // --- EDIT MODE: Send ONLY modified/dirty fields ---
         payload = {}
 
+        const currentValues = getValues()
+        const initialValues = initialValuesRef.current || {}
+
         // 1. Process all dirty fields tracked by react-hook-form
         Object.keys(dirtyFields).forEach((key) => {
-          const val = formData[key]
+          const val = currentValues[key] ?? formData[key]
           payload[key] = (val === '' || val === undefined) ? null : val
         })
 
-        if (dirtyFields.mobile_number || dirtyFields.email) {
-          const mob = formData.mobile_number || watch('mobile_number')
-          payload.email = mob ? `91${mob}@hisaab.reev.group` : null
+        // 2. Diff fallback against initial values to guarantee changed fields are always included
+        Object.keys(currentValues).forEach((key) => {
+          const curVal = currentValues[key]
+          const initVal = initialValues[key]
+          if (curVal !== initVal && curVal !== undefined) {
+            payload[key] = (curVal === '' || curVal === undefined) ? null : curVal
+          }
+        })
+
+        // Explicit fallback for personal info
+        if (currentValues.employee_blood_group !== initialValues.employee_blood_group || dirtyFields.employee_blood_group) {
+          payload.employee_blood_group = currentValues.employee_blood_group || null
+        }
+        if (currentValues.employee_birthdate !== initialValues.employee_birthdate || dirtyFields.employee_birthdate) {
+          payload.employee_birthdate = currentValues.employee_birthdate || null
+        }
+        if (currentValues.emergency_contact_name !== initialValues.emergency_contact_name || dirtyFields.emergency_contact_name) {
+          payload.emergency_contact_name = currentValues.emergency_contact_name || null
+        }
+        if (currentValues.emergency_contact_phone !== initialValues.emergency_contact_phone || dirtyFields.emergency_contact_phone) {
+          payload.emergency_contact_phone = currentValues.emergency_contact_phone || null
+        }
+        if (currentValues.marital_status !== initialValues.marital_status || dirtyFields.marital_status) {
+          payload.marital_status = currentValues.marital_status || null
         }
 
-        if (dirtyFields.salary_per_month || dirtyFields.salary) {
+        if (dirtyFields.mobile_number || dirtyFields.email || currentValues.mobile_number !== initialValues.mobile_number) {
+          const mob = currentValues.mobile_number || formData.mobile_number || watch('mobile_number')
+          payload.email = mob ? `91${mob}@hisaab.reev.group` : null
+        }
+        delete payload.mobile_number
+
+        if (dirtyFields.salary_per_month || dirtyFields.salary || currentValues.salary_per_month !== initialValues.salary_per_month) {
           const salaryVal = String(watch('salary_per_month') ?? watch('salary') ?? '')
           payload.salary_per_month = salaryVal ? salaryVal.split('.')[0] : null
           payload.salary_per_month_after_decimal = salaryVal ? (salaryVal.split('.')[1] || '0') : null
-          delete payload.salary
+        }
+        delete payload.salary
+
+        if (dirtyFields.role || currentValues.role !== initialValues.role) {
+          let r = currentValues.role
+          if (r === 'Admin') r = ROLE_ADMIN
+          else if (r === 'Manager') r = ROLE_MANAGER
+          else if (r === 'Employee') r = ROLE_EMPLOYEE
+          payload.role = r
         }
 
         if (dirtyFields.password) {
@@ -762,7 +880,7 @@ export default function StaffForm() {
           delete payload.password
         }
 
-        if (dirtyFields.status || dirtyFields.inactive_date) {
+        if (dirtyFields.status || dirtyFields.inactive_date || currentValues.inactive_date !== initialValues.inactive_date) {
           const inDate = watch('inactive_date')
           const status = inDate ? 'archived' : 'active'
           if (status === 'archived' && (!inDate || String(inDate).trim() === '')) {
@@ -772,20 +890,24 @@ export default function StaffForm() {
           payload.inactive_date = status === 'archived' && inDate ? new Date(inDate).toISOString() : null
         }
 
-        if (dirtyFields.select_category || dirtyFields.employee_category_id) {
-          const catVal = formData.employee_category_id || formData.select_category
-          const matchedCat = dbCategories.find((c: any) => c.name === catVal || String(c.id) === String(catVal))
-          payload.employee_category_id = matchedCat ? Number(matchedCat.id) : (Number(catVal) || null)
+        if (dirtyFields.select_category || dirtyFields.employee_category_id || currentValues.employee_category_id !== initialValues.employee_category_id) {
+          const catVal = currentValues.employee_category_id || currentValues.select_category
+          const matchedCat = dbCategories.find((c: any) => String(c.employee_category_id || c.id) === String(catVal) || (c.employee_category_name || c.name) === catVal)
+          payload.employee_category_id = matchedCat ? Number(matchedCat.employee_category_id || matchedCat.id) : (Number(catVal) || null)
         }
 
-        if (dirtyFields.leave_template || dirtyFields.assigned_leave_template) {
-          const selectedTemplate = formData.assigned_leave_template || formData.leave_template
+        if (dirtyFields.leave_template || dirtyFields.assigned_leave_template || currentValues.assigned_leave_template !== initialValues.assigned_leave_template) {
+          const selectedTemplate = currentValues.assigned_leave_template || currentValues.leave_template
           if (!selectedTemplate || selectedTemplate === 'none') {
             payload.assigned_leave_template = null
+            payload.leaves = []
           } else {
-            const matchedTpl = dbLeaveTemplates.find((t: any) => String(t.leave_template_id || t.id) === String(selectedTemplate) || t.template_name === selectedTemplate)
-            payload.assigned_leave_template = matchedTpl ? Number(matchedTpl.leave_template_id || matchedTpl.id) : null
+            const matchedTpl = dbLeaveTemplates.find((t: any) => String(t.leave_template_id || t.id) === String(selectedTemplate) || (t.leave_template_name || t.template_name || t.name) === selectedTemplate)
+            payload.assigned_leave_template = matchedTpl ? Number(matchedTpl.leave_template_id || matchedTpl.id) : (Number(selectedTemplate) || null)
+            payload.leaves = watch('leaves') || []
           }
+        } else if (dirtyFields.leaves) {
+          payload.leaves = watch('leaves') || []
         }
 
         if (dirtyFields.casual_leaves) payload.casual_leaves = Number(watch('casual_leaves')) || 0
@@ -793,56 +915,90 @@ export default function StaffForm() {
         if (dirtyFields.privilege_leaves) payload.privilege_leaves = Number(watch('privilege_leaves')) || 0
         if (dirtyFields.emergency_leave) payload.emergency_leave = Number(watch('emergency_leave')) || 0
 
-        if (dirtyFields.designation_id) {
-          const desVal = formData.designation_id
-          const matchedDes = dbDesignations.find((d: any) => d.name === desVal || String(d.id) === String(desVal))
-          payload.designation_id = matchedDes ? Number(matchedDes.id) : (Number(desVal) || null)
+        if (dirtyFields.designation_id || currentValues.designation_id !== initialValues.designation_id) {
+          const desVal = currentValues.designation_id
+          const matchedDes = dbDesignations.find((d: any) => String(d.designation_id || d.id) === String(desVal) || (d.designation_name || d.name) === desVal)
+          payload.designation_id = matchedDes ? Number(matchedDes.designation_id || matchedDes.id) : (Number(desVal) || null)
         }
 
-        if (dirtyFields.payroll_template || dirtyFields.payroll_template_id) {
-          const ptVal = formData.payroll_template_id || formData.payroll_template
-          if (!ptVal || ptVal === 'none') {
+        if (dirtyFields.title || currentValues.title !== initialValues.title) {
+          payload.title = currentValues.title || null
+        }
+
+        if (dirtyFields.payroll_template || dirtyFields.payroll_template_id || currentValues.payroll_template_id !== initialValues.payroll_template_id) {
+          const ptVal = currentValues.payroll_template_id ?? currentValues.payroll_template
+          if (!ptVal || ptVal === 'none' || ptVal === '') {
             payload.payroll_template_id = null
           } else {
-            const matchedPt = dbPayrollTemplates.find((p: any) => String(p.id) === String(ptVal) || p.template_name === ptVal)
-            payload.payroll_template_id = matchedPt ? Number(matchedPt.id) : (Number(ptVal) || null)
+            const matchedPt = dbPayrollTemplates.find((p: any) => String(p.payroll_template_id || p.id) === String(ptVal) || (p.payroll_template_name || p.template_name || p.name) === ptVal)
+            payload.payroll_template_id = matchedPt ? Number(matchedPt.payroll_template_id || matchedPt.id) : (Number(ptVal) || null)
           }
         }
 
-        if (dirtyFields.auto_overtime) payload.auto_overtime = Boolean(watch('auto_overtime'))
-        if (dirtyFields.week_off_extra_payment || dirtyFields.week_off_payment) payload.week_off_payment = Boolean(watch('week_off_extra_payment') ?? watch('week_off_payment'))
-        if (dirtyFields.week_off_as_overtime) payload.week_off_as_overtime = Boolean(watch('week_off_as_overtime'))
-        if (dirtyFields.holiday_extra_payment) payload.holiday_extra_payment = Boolean(watch('holiday_extra_payment'))
-        if (dirtyFields.holiday_as_overtime) payload.holiday_as_overtime = Boolean(watch('holiday_as_overtime'))
-
-        if (dirtyFields.week_off_day || dirtyFields.week_off_day_number) {
-          const dayName = watch('week_off_day')
-          const dayMap: Record<string, number> = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 }
-          payload.week_off_day_number = dayName in dayMap ? dayMap[dayName] : null
+        if (dirtyFields.auto_overtime || currentValues.auto_overtime !== initialValues.auto_overtime) {
+          payload.auto_overtime = Boolean(watch('auto_overtime'))
+        }
+        if (dirtyFields.week_off_payment || dirtyFields.week_off_extra_payment || currentValues.week_off_payment !== initialValues.week_off_payment) {
+          payload.week_off_payment = Boolean(watch('week_off_payment') ?? watch('week_off_extra_payment'))
+        }
+        if (dirtyFields.week_off_as_overtime || currentValues.week_off_as_overtime !== initialValues.week_off_as_overtime) {
+          payload.week_off_as_overtime = Boolean(watch('week_off_as_overtime'))
+        }
+        if (dirtyFields.holiday_extra_payment || currentValues.holiday_extra_payment !== initialValues.holiday_extra_payment) {
+          payload.holiday_extra_payment = Boolean(watch('holiday_extra_payment'))
+        }
+        if (dirtyFields.holiday_as_overtime || currentValues.holiday_as_overtime !== initialValues.holiday_as_overtime) {
+          payload.holiday_as_overtime = Boolean(watch('holiday_as_overtime'))
+        }
+        if (dirtyFields.week_off_day_number || currentValues.week_off_day_number !== initialValues.week_off_day_number) {
+          const weekOffNum = watch('week_off_day_number')
+          payload.week_off_day_number = (weekOffNum !== '' && weekOffNum != null) ? Number(weekOffNum) : null
+        }
+        if (dirtyFields.applicable_for_overtime || currentValues.applicable_for_overtime !== initialValues.applicable_for_overtime) {
+          payload.applicable_for_overtime = Boolean(watch('applicable_for_overtime'))
+        }
+        if (dirtyFields.overtime_hours || dirtyFields.overtime_starts_after_hours) {
+          payload.overtime_hours = Number(watch('overtime_hours') ?? watch('overtime_starts_after_hours')) || 0
+        }
+        if (dirtyFields.overtime_minutes || dirtyFields.overtime_starts_after_minutes) {
+          payload.overtime_minutes = Number(watch('overtime_minutes') ?? watch('overtime_starts_after_minutes')) || 0
+        }
+        if (dirtyFields.overtime_hourly_rate || currentValues.overtime_hourly_rate !== initialValues.overtime_hourly_rate) {
+          payload.overtime_hourly_rate = Number(watch('overtime_hourly_rate')) || 0
+        }
+        if (dirtyFields.can_view_self_salary || dirtyFields.view_self_salary || currentValues.can_view_self_salary !== initialValues.can_view_self_salary) {
+          payload.can_view_self_salary = Boolean(watch('can_view_self_salary') ?? watch('view_self_salary'))
+        }
+        if (dirtyFields.self_odometer_reading || currentValues.self_odometer_reading !== initialValues.self_odometer_reading) {
+          payload.self_odometer_reading = Boolean(watch('self_odometer_reading'))
+        }
+        if (dirtyFields.vehicle_type || currentValues.vehicle_type !== initialValues.vehicle_type) {
+          payload.vehicle_type = watch('self_odometer_reading') ? (watch('vehicle_type') || null) : null
+        }
+        if (dirtyFields.per_km_amount || currentValues.per_km_amount !== initialValues.per_km_amount) {
+          payload.per_km_amount = watch('self_odometer_reading') && watch('per_km_amount') !== '' && watch('per_km_amount') != null ? Number(watch('per_km_amount')) : null
+        }
+        if (dirtyFields.can_view_manager || dirtyFields.view_other_managers) {
+          payload.can_view_manager = Boolean(watch('can_view_manager') ?? watch('view_other_managers'))
+        }
+        if (dirtyFields.is_admin || dirtyFields.super_admin_access) {
+          payload.is_admin = Boolean(watch('is_admin') ?? watch('super_admin_access'))
+        }
+        if (dirtyFields.punch_from || currentValues.punch_from !== initialValues.punch_from) {
+          payload.punch_from = (watch('punch_from') || '').toLowerCase()
+        }
+        if (dirtyFields.shift_type || dirtyFields.shift_alignment_type || currentValues.shift_type !== initialValues.shift_type) {
+          payload.shift_type = (watch('shift_type') || watch('shift_alignment_type') || '').toLowerCase()
+        }
+        if (dirtyFields.pay_type || currentValues.pay_type !== initialValues.pay_type) {
+          payload.pay_type = watch('pay_type') || 'Monthly'
         }
 
-        if (dirtyFields.self_odometer_reading) {
-          const odo = Boolean(watch('self_odometer_reading'))
-          payload.self_odometer_reading = odo
-          payload.vehicle_type = odo ? (watch('vehicle_type') || null) : null
-          payload.per_km_amount = odo && watch('per_km_amount') !== '' && watch('per_km_amount') != null ? Number(watch('per_km_amount')) : null
-        } else {
-          if (dirtyFields.vehicle_type) payload.vehicle_type = watch('vehicle_type') || null
-          if (dirtyFields.per_km_amount) payload.per_km_amount = watch('per_km_amount') !== '' && watch('per_km_amount') != null ? Number(watch('per_km_amount')) : null
-        }
-
-        if (dirtyFields.view_self_salary || dirtyFields.can_view_self_salary) payload.can_view_self_salary = Boolean(watch('view_self_salary'))
-        if (dirtyFields.view_other_managers || dirtyFields.can_view_manager) payload.can_view_manager = Boolean(watch('view_other_managers'))
-        if (dirtyFields.super_admin_access || dirtyFields.is_admin) payload.is_admin = Boolean(watch('super_admin_access'))
-        if (dirtyFields.punch_from) payload.punch_from = (watch('punch_from') || '').toLowerCase()
-        if (dirtyFields.shift_alignment_type || dirtyFields.shift_type) payload.shift_type = (watch('shift_alignment_type') || '').toLowerCase()
-        if (dirtyFields.pay_type) payload.pay_type = (watch('pay_type') || '').toLowerCase()
-
-        if (dirtyFields.manage_other_categories || dirtyFields.other_category_ids) {
-          const otherCats = watch('manage_other_categories') || []
+        if (dirtyFields.manage_other_categories || dirtyFields.other_category_ids || JSON.stringify(currentValues.other_category_ids) !== JSON.stringify(initialValues.other_category_ids)) {
+          const otherCats = watch('other_category_ids') || watch('manage_other_categories') || []
           payload.other_category_ids = (Array.isArray(otherCats) ? otherCats : [])
             .map((item: any) => {
-              const catId = typeof item === 'object' ? (item.employee_category_id || item.id) : item
+              const catId = typeof item === 'object' ? (item.employee_category_employee_category_id?.employee_category_id || item.employee_category_id || item.id) : item
               return { employee_category_employee_category_id: { employee_category_id: Number(catId) } }
             })
             .filter((c: any) => !isNaN(c.employee_category_employee_category_id.employee_category_id) && c.employee_category_employee_category_id.employee_category_id > 0)
@@ -882,6 +1038,8 @@ export default function StaffForm() {
         }
 
         // 4. Clean up UI helper keys
+        delete payload.mobile_number
+        delete payload.salary
         delete payload.select_category
         delete payload.leave_template
         delete payload.payroll_template
@@ -892,8 +1050,15 @@ export default function StaffForm() {
         delete payload.super_admin_access
         delete payload.shift_alignment_type
         delete payload.manage_other_categories
-        delete payload.salary
         delete payload.custom_designation
+        delete payload.overtime_starts_after_hours
+        delete payload.overtime_starts_after_minutes
+
+        if (payload.role) {
+          if (payload.role === 'Admin') payload.role = ROLE_ADMIN
+          else if (payload.role === 'Manager') payload.role = ROLE_MANAGER
+          else if (payload.role === 'Employee') payload.role = ROLE_EMPLOYEE
+        }
 
         // Check if anything actually changed
         if (Object.keys(payload).length === 0) {
@@ -903,8 +1068,8 @@ export default function StaffForm() {
 
       } else {
         // --- CREATE MODE: Send FULL payload ---
-        const inDate = watch('inactive_date')
-        const status = inDate ? 'archived' : 'active'
+        const inDate = formData.inactive_date || watch('inactive_date')
+        const status = inDate ? 'archived' : (formData.status || 'active')
         if (status === 'archived' && (!inDate || String(inDate).trim() === '')) {
           throw new Error('Inactive Date is mandatory when status is archived')
         }
@@ -914,7 +1079,7 @@ export default function StaffForm() {
         const mob = formData.mobile_number || watch('mobile_number')
 
         const catVal = formData.employee_category_id || formData.select_category
-        const matchedCat = dbCategories.find((c: any) => c.name === catVal || String(c.id) === String(catVal))
+        const matchedCat = dbCategories.find((c: any) => String(c.employee_category_id || c.id) === String(catVal) || (c.employee_category_name || c.name) === catVal)
 
         const selShiftIds = shifts.filter(s => s.selected).map(s => Number(s.id)).filter(Boolean)
         const selHeadIds = [
@@ -923,48 +1088,59 @@ export default function StaffForm() {
         ].filter(Boolean)
 
         const selectedLeaveTemplate = formData.assigned_leave_template || formData.leave_template
-        const matchedTpl = (!selectedLeaveTemplate || selectedLeaveTemplate === 'none') ? null : dbLeaveTemplates.find((t: any) => String(t.leave_template_id || t.id) === String(selectedLeaveTemplate) || t.template_name === selectedLeaveTemplate)
+        const matchedTpl = (!selectedLeaveTemplate || selectedLeaveTemplate === 'none') ? null : dbLeaveTemplates.find((t: any) => String(t.leave_template_id || t.id) === String(selectedLeaveTemplate) || (t.leave_template_name || t.template_name || t.name) === selectedLeaveTemplate)
 
         const ptVal = formData.payroll_template_id || formData.payroll_template
-        const matchedPt = (!ptVal || ptVal === 'none') ? null : dbPayrollTemplates.find((p: any) => String(p.id) === String(ptVal) || p.template_name === ptVal)
-
-        const dayName = watch('week_off_day')
-        const dayMap: Record<string, number> = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 }
+        const matchedPt = (!ptVal || ptVal === 'none') ? null : dbPayrollTemplates.find((p: any) => String(p.payroll_template_id || p.id) === String(ptVal) || (p.payroll_template_name || p.template_name || p.name) === ptVal)
 
         const desVal = formData.designation_id
-        const matchedDes = dbDesignations.find((d: any) => d.name === desVal || String(d.id) === String(desVal))
+        const matchedDes = dbDesignations.find((d: any) => String(d.designation_id || d.id) === String(desVal) || (d.designation_name || d.name) === desVal)
 
         const odo = Boolean(watch('self_odometer_reading'))
+        const weekOffNum = watch('week_off_day_number')
+
+        let createRole = formData.role || ROLE_EMPLOYEE
+        if (createRole === 'Admin') createRole = ROLE_ADMIN
+        else if (createRole === 'Manager') createRole = ROLE_MANAGER
+        else if (createRole === 'Employee') createRole = ROLE_EMPLOYEE
 
         payload = {
           ...formData,
           email: mob ? `91${mob}@hisaab.reev.group` : null,
+          role: createRole,
           status: status,
           inactive_date: inactiveDateIso,
           salary_per_month: salaryVal ? salaryVal.split('.')[0] : null,
           salary_per_month_after_decimal: salaryVal ? (salaryVal.split('.')[1] || '0') : null,
-          employee_category_id: matchedCat ? Number(matchedCat.id) : (Number(catVal) || null),
-          designation_id: matchedDes ? Number(matchedDes.id) : (Number(desVal) || null),
+          employee_category_id: matchedCat ? Number(matchedCat.employee_category_id || matchedCat.id) : (Number(catVal) || null),
+          designation_id: matchedDes ? Number(matchedDes.designation_id || matchedDes.id) : (Number(desVal) || null),
+          title: formData.title || null,
           assigned_leave_template: matchedTpl ? Number(matchedTpl.leave_template_id || matchedTpl.id) : null,
-          payroll_template_id: matchedPt ? Number(matchedPt.id) : (Number(ptVal) || null),
+          leaves: matchedTpl ? (watch('leaves') || []) : [],
+          payroll_template_id: matchedPt ? Number(matchedPt.payroll_template_id || matchedPt.id) : (Number(ptVal) || null),
           casual_leaves: Number(watch('casual_leaves')) || 0,
           sick_leaves: Number(watch('sick_leaves')) || 0,
           privilege_leaves: Number(watch('privilege_leaves')) || 0,
           emergency_leave: Number(watch('emergency_leave')) || 0,
-          week_off_payment: Boolean(watch('week_off_extra_payment') ?? watch('week_off_payment')),
+          week_off_payment: Boolean(watch('week_off_payment') ?? watch('week_off_extra_payment')),
           week_off_as_overtime: Boolean(watch('week_off_as_overtime')),
           holiday_extra_payment: Boolean(watch('holiday_extra_payment')),
           holiday_as_overtime: Boolean(watch('holiday_as_overtime')),
-          week_off_day_number: dayName in dayMap ? dayMap[dayName] : null,
+          week_off_day_number: (weekOffNum !== '' && weekOffNum != null) ? Number(weekOffNum) : null,
+          applicable_for_overtime: Boolean(watch('applicable_for_overtime')),
+          auto_overtime: Boolean(watch('auto_overtime')),
+          overtime_hours: Number(watch('overtime_hours') ?? watch('overtime_starts_after_hours')) || 0,
+          overtime_minutes: Number(watch('overtime_minutes') ?? watch('overtime_starts_after_minutes')) || 0,
+          overtime_hourly_rate: Number(watch('overtime_hourly_rate')) || 0,
           self_odometer_reading: odo,
           vehicle_type: odo ? (watch('vehicle_type') || null) : null,
           per_km_amount: odo && watch('per_km_amount') !== '' && watch('per_km_amount') != null ? Number(watch('per_km_amount')) : null,
-          can_view_self_salary: Boolean(watch('view_self_salary')),
-          can_view_manager: Boolean(watch('view_other_managers')),
-          is_admin: Boolean(watch('super_admin_access')),
+          can_view_self_salary: Boolean(watch('can_view_self_salary') ?? watch('view_self_salary')),
+          can_view_manager: Boolean(watch('can_view_manager') ?? watch('view_other_managers')),
+          is_admin: Boolean(watch('is_admin') ?? watch('super_admin_access')),
           punch_from: (watch('punch_from') || '').toLowerCase(),
-          shift_type: (watch('shift_alignment_type') || '').toLowerCase(),
-          pay_type: (watch('pay_type') || '').toLowerCase(),
+          shift_type: (watch('shift_type') || watch('shift_alignment_type') || '').toLowerCase(),
+          pay_type: watch('pay_type') || 'Monthly',
           shift_ids: selShiftIds.map(sid => ({ shift_shift_id: { shift_id: sid } })),
           weekly_shifts: weeklyShifts,
           payroll_heads: selHeadIds.map(hid => ({
@@ -975,6 +1151,7 @@ export default function StaffForm() {
           avatar: avatarId || formData.avatar || null,
         }
 
+        delete payload.mobile_number
         delete payload.select_category
         delete payload.leave_template
         delete payload.payroll_template
@@ -987,6 +1164,8 @@ export default function StaffForm() {
         delete payload.manage_other_categories
         delete payload.salary
         delete payload.custom_designation
+        delete payload.overtime_starts_after_hours
+        delete payload.overtime_starts_after_minutes
 
         if (payload.password && (payload.password.includes('*') || payload.password === '******')) {
           delete payload.password
@@ -1022,6 +1201,46 @@ export default function StaffForm() {
     },
   })
 
+  const [isConfirmSaveOpen, setIsConfirmSaveOpen] = useState(false)
+  const [pendingFormData, setPendingFormData] = useState<any>(null)
+
+  // Image Lightbox State
+  const [lightboxState, setLightboxState] = useState<{
+    isOpen: boolean
+    src: string | null
+    title?: string
+  }>({
+    isOpen: false,
+    src: null,
+    title: '',
+  })
+
+  const openLightbox = (src: string | null, title?: string) => {
+    if (!src) return
+    setLightboxState({ isOpen: true, src, title })
+  }
+
+  const closeLightbox = () => {
+    setLightboxState(prev => ({ ...prev, isOpen: false, src: null }))
+  }
+
+  // File download helper for non-image files like PDFs
+  const handleDownloadFile = (url: string, filename: string) => {
+    try {
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename || 'document'
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (err) {
+      console.error('Download error:', err)
+      window.open(url, '_blank')
+    }
+  }
+
   // Form Submit Handler
   const onSubmit = async (data: any) => {
     const currentStatus = watch('inactive_date') ? 'archived' : 'active'
@@ -1034,10 +1253,8 @@ export default function StaffForm() {
     }
 
     if (id) {
-      const confirm = window.confirm('Are you sure to save changes ?')
-      if (confirm) {
-        addOrEditStaffMutation.mutate({ formData: data, isPartialEdit: true })
-      }
+      setPendingFormData(data)
+      setIsConfirmSaveOpen(true)
     } else {
       addOrEditStaffMutation.mutate({ formData: data, isPartialEdit: false })
     }
@@ -1119,23 +1336,38 @@ export default function StaffForm() {
 
   const addFilesToTempList = (files: FileList) => {
     const filesArray = Array.from(files)
-    const newItems: UploadedFileItem[] = filesArray.map((file, index) => {
+    const validFiles = filesArray.filter(file => {
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+      const isImg = file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|bmp|svg)$/i.test(file.name)
+      if (!isPdf && !isImg) {
+        toast.error(`"${file.name}" rejected. Only images and PDF files are allowed.`)
+        return false
+      }
+      return true
+    })
+
+    if (validFiles.length === 0) return
+
+    const newItems: UploadedFileItem[] = validFiles.map((file, index) => {
       const sizeStr = file.size > 1024 * 1024
         ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
         : `${(file.size / 1024).toFixed(0)} KB`
+
+      const isImage = file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|bmp|svg)$/i.test(file.name)
 
       return {
         id: `bulk-doc-${Date.now()}-${index}`,
         name: file.name,
         size: sizeStr,
         url: URL.createObjectURL(file),
-        isImage: file.type.startsWith('image/'),
+        isImage,
         file,
       }
     })
 
     setTempUploads(prev => [...prev, ...newItems])
-    toast.success(`${newItems.length} temporary preview(s) added.`)
+    setDocumentsDirty(true)
+    toast.success(`${newItems.length} document preview(s) added.`)
   }
 
   // Handle bulk document uploads (exactly like the screenshot)
@@ -1161,6 +1393,7 @@ export default function StaffForm() {
 
   const handleRemoveSavedDocument = (id: string) => {
     setSavedDocuments(prev => prev.filter(f => f.id !== id))
+    setDocumentsDirty(true)
     toast.success('Saved document removed.')
   }
 
@@ -1182,6 +1415,7 @@ export default function StaffForm() {
     })
 
     setTempFaceImages(prev => [...prev, ...newItems])
+    setFaceImagesDirty(true)
     toast.success(`${newItems.length} temporary face preview(s) added.`)
   }
 
@@ -1206,6 +1440,7 @@ export default function StaffForm() {
 
   const handleRemoveSavedFaceImage = (id: string) => {
     setSavedFaceImages(prev => prev.filter(f => f.id !== id))
+    setFaceImagesDirty(true)
     toast.success('Saved face image removed.')
   }
 
@@ -1295,8 +1530,7 @@ export default function StaffForm() {
           {/* Scrollable Form Content */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* ==================== BASIC INFO TAB ==================== */}
-            {activeTab === 'basic' && (
-              <div className="space-y-6">
+            <div className={cn("space-y-6", activeTab !== 'basic' && "hidden")}>
                 {/* Profile Picture */}
                 <div>
                   <Label className="text-[13px] font-semibold mb-3 block text-foreground">Change Profile Picture</Label>
@@ -1305,7 +1539,9 @@ export default function StaffForm() {
                       <img
                         src={profilePic}
                         alt="Preview"
-                        className="size-16 rounded-full object-cover border border-border"
+                        onClick={() => openLightbox(profilePic, `${firstName || 'Staff'} Profile Picture`)}
+                        className="size-16 rounded-full object-cover border border-border shadow-xs cursor-pointer hover:opacity-85 transition-opacity"
+                        title="Click to view full image"
                       />
                     ) : (
                       <PersonAvatar
@@ -1536,11 +1772,15 @@ export default function StaffForm() {
                       control={control}
                       name="employee_blood_group"
                       render={({ field }) => (
-                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <Select
+                          onValueChange={(val) => field.onChange(val === 'none' ? '' : val)}
+                          value={field.value || 'none'}
+                        >
                           <SelectTrigger id="employee_blood_group">
                             <SelectValue placeholder="Select blood group" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="none">Select blood group</SelectItem>
                             {BLOOD_GROUPS.map(bg => (
                               <SelectItem key={bg} value={bg}>{bg}</SelectItem>
                             ))}
@@ -1713,6 +1953,7 @@ export default function StaffForm() {
                         multiple
                         id="bulk-document-upload"
                         className="hidden"
+                        accept="image/*,application/pdf,.pdf"
                         onChange={handleBulkDocumentUpload}
                       />
                       <label
@@ -1737,7 +1978,7 @@ export default function StaffForm() {
                             from your device
                           </p>
                           <p className="text-[10px] text-muted-foreground/70 pt-1">
-                            PDF, DOCX, JPG, PNG supported · Max 10 MB per file
+                            PDF, JPG, PNG, WEBP supported · Max 10 MB per file
                           </p>
                         </div>
                       </label>
@@ -1759,15 +2000,27 @@ export default function StaffForm() {
                                     <img
                                       src={doc.url}
                                       alt={doc.name}
-                                      className="w-10 h-14 object-cover rounded-md border border-border shrink-0"
+                                      onClick={() => openLightbox(doc.url, doc.name)}
+                                      className="w-10 h-14 object-cover rounded-md border border-border shrink-0 cursor-pointer hover:opacity-85 transition-opacity"
+                                      title="Click to preview image"
                                     />
                                   ) : (
-                                    <div className="w-10 h-14 flex items-center justify-center bg-muted rounded-md border border-border shrink-0">
+                                    <div
+                                      onClick={() => handleDownloadFile(doc.url, doc.name)}
+                                      className="w-10 h-14 flex items-center justify-center bg-muted rounded-md border border-border shrink-0 cursor-pointer hover:bg-muted/80 transition-colors"
+                                      title="Click to download/open file"
+                                    >
                                       <FileText className="size-5 text-muted-foreground" />
                                     </div>
                                   )}
                                   <div className="min-w-0">
-                                    <span className="text-[12px] font-semibold text-foreground block truncate">
+                                    <span
+                                      className="text-[12px] font-semibold text-foreground block truncate cursor-pointer hover:underline"
+                                      onClick={() => {
+                                        if (doc.isImage) openLightbox(doc.url, doc.name)
+                                        else handleDownloadFile(doc.url, doc.name)
+                                      }}
+                                    >
                                       {doc.name}
                                     </span>
                                     <span className="text-[10px] text-muted-foreground block mt-0.5">
@@ -1775,13 +2028,35 @@ export default function StaffForm() {
                                     </span>
                                   </div>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveTempUpload(doc.id)}
-                                  className="text-rose-500 hover:text-rose-700 bg-rose-500/10 hover:bg-rose-500/20 p-2 rounded-lg cursor-pointer transition-colors shrink-0"
-                                >
-                                  <Trash2 className="size-3.5" />
-                                </button>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {doc.isImage ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => openLightbox(doc.url, doc.name)}
+                                      className="text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 p-2 rounded-lg cursor-pointer transition-colors"
+                                      title="Preview Image"
+                                    >
+                                      <Eye className="size-3.5" />
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadFile(doc.url, doc.name)}
+                                      className="text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 p-2 rounded-lg cursor-pointer transition-colors"
+                                      title="Download / Open File"
+                                    >
+                                      <Download className="size-3.5" />
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveTempUpload(doc.id)}
+                                    className="text-rose-500 hover:text-rose-700 bg-rose-500/10 hover:bg-rose-500/20 p-2 rounded-lg cursor-pointer transition-colors"
+                                    title="Remove Preview"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -1807,15 +2082,27 @@ export default function StaffForm() {
                                   <img
                                     src={doc.url}
                                     alt={doc.name}
-                                    className="w-12 h-16 object-cover rounded-md border border-border shrink-0"
+                                    onClick={() => openLightbox(doc.url, doc.name)}
+                                    className="w-12 h-16 object-cover rounded-md border border-border shrink-0 cursor-pointer hover:opacity-85 transition-opacity"
+                                    title="Click to preview image"
                                   />
                                 ) : (
-                                  <div className="w-12 h-16 flex items-center justify-center bg-muted rounded-md border border-border shrink-0">
+                                  <div
+                                    onClick={() => handleDownloadFile(doc.url, doc.name)}
+                                    className="w-12 h-16 flex items-center justify-center bg-muted rounded-md border border-border shrink-0 cursor-pointer hover:bg-muted/80 transition-colors"
+                                    title="Click to download/open file"
+                                  >
                                     <FileText className="size-6 text-muted-foreground" />
                                   </div>
                                 )}
                                 <div className="min-w-0">
-                                  <span className="text-[13px] font-semibold text-foreground block truncate">
+                                  <span
+                                    className="text-[13px] font-semibold text-foreground block truncate cursor-pointer hover:underline"
+                                    onClick={() => {
+                                      if (doc.isImage) openLightbox(doc.url, doc.name)
+                                      else handleDownloadFile(doc.url, doc.name)
+                                    }}
+                                  >
                                     {doc.name}
                                   </span>
                                   <span className="text-[11px] text-muted-foreground block mt-0.5">
@@ -1823,13 +2110,35 @@ export default function StaffForm() {
                                   </span>
                                 </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveSavedDocument(doc.id)}
-                                className="text-rose-500 hover:text-rose-700 bg-rose-500/10 hover:bg-rose-500/20 p-2 rounded-lg cursor-pointer transition-colors shrink-0"
-                              >
-                                <Trash2 className="size-4" />
-                              </button>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {doc.isImage ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openLightbox(doc.url, doc.name)}
+                                    className="text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 p-2 rounded-lg cursor-pointer transition-colors"
+                                    title="Preview Image"
+                                  >
+                                    <Eye className="size-4" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadFile(doc.url, doc.name)}
+                                    className="text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 p-2 rounded-lg cursor-pointer transition-colors"
+                                    title="Download File"
+                                  >
+                                    <Download className="size-4" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveSavedDocument(doc.id)}
+                                  className="text-rose-500 hover:text-rose-700 bg-rose-500/10 hover:bg-rose-500/20 p-2 rounded-lg cursor-pointer transition-colors"
+                                  title="Remove Document"
+                                >
+                                  <Trash2 className="size-4" />
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1838,14 +2147,10 @@ export default function StaffForm() {
                   </div>
                 </div>
 
-
-
-              </div>
-            )}
+            </div>
 
             {/* ==================== EMPLOYMENT & BANK TAB ==================== */}
-            {activeTab === 'employment' && (
-              <div className="space-y-6">
+            <div className={cn("space-y-6", activeTab !== 'employment' && "hidden")}>
                 <div className="border border-border rounded-xl p-6 bg-card space-y-6">
                   {/* Basic Employment Info Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1857,21 +2162,21 @@ export default function StaffForm() {
                         control={control}
                         name="role"
                         render={({ field }) => (
-                          <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <Select onValueChange={field.onChange} value={field.value || ROLE_EMPLOYEE}>
                             <SelectTrigger id="employee_type">
                               <SelectValue placeholder="Select employee type" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Employee">Employee</SelectItem>
-                              <SelectItem value="Manager">Manager</SelectItem>
-                              <SelectItem value="Admin">Admin</SelectItem>
+                              <SelectItem value={ROLE_EMPLOYEE}>Employee</SelectItem>
+                              <SelectItem value={ROLE_MANAGER}>Manager</SelectItem>
+                              <SelectItem value={ROLE_ADMIN}>Admin</SelectItem>
                             </SelectContent>
                           </Select>
                         )}
                       />
                     </div>
 
-                    {role === 'Admin' ? (
+                    {(role === ROLE_ADMIN || role === 'Admin') ? (
                       <div className="flex items-center gap-3 pt-5">
                         <Controller
                           control={control}
@@ -1895,23 +2200,33 @@ export default function StaffForm() {
                       </div>
                     ) : (
                       <div>
-                        <Label htmlFor="select_category" className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
+                        <Label htmlFor="employee_category_id" className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
                           Select Category
                         </Label>
                         <Controller
                           control={control}
-                          name="select_category"
+                          name="employee_category_id"
                           render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value || ""}>
-                              <SelectTrigger id="select_category">
+                            <Select
+                              onValueChange={(val) => {
+                                field.onChange(val)
+                                setValue('select_category', val)
+                              }}
+                              value={field.value ? String(field.value) : ""}
+                            >
+                              <SelectTrigger id="employee_category_id">
                                 <SelectValue placeholder="Select category" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="Sales">Sales</SelectItem>
-                                <SelectItem value="Operations">Operations</SelectItem>
-                                <SelectItem value="HR">HR</SelectItem>
-                                <SelectItem value="Finance">Finance</SelectItem>
-                                <SelectItem value="Marketing">Marketing</SelectItem>
+                                {dbCategories.map((c: any) => {
+                                  const catId = String(c.employee_category_id || c.id)
+                                  const catName = c.employee_category_name || c.name || `Category #${catId}`
+                                  return (
+                                    <SelectItem key={catId} value={catId}>
+                                      {catName}
+                                    </SelectItem>
+                                  )
+                                })}
                               </SelectContent>
                             </Select>
                           )}
@@ -1920,7 +2235,7 @@ export default function StaffForm() {
                     )}
 
                     {/* Dynamic Manager Fields */}
-                    {role === 'Manager' && (
+                    {(role === ROLE_MANAGER || role === 'Manager') && (
                       <>
                         <div className="md:col-span-2">
                           <Label htmlFor="manage_other_categories" className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
@@ -1932,14 +2247,23 @@ export default function StaffForm() {
                             render={({ field }) => {
                               const anchor = manageCategoriesAnchor
                               const selectedValues = Array.isArray(field.value) ? field.value : []
+                              const categoryOptions = dbCategories.map((c: any) => c.name || c.employee_category_name).filter(Boolean)
 
                               return (
                                 <Combobox
                                   multiple
                                   autoHighlight
-                                  items={CATEGORIES}
+                                  items={categoryOptions.length > 0 ? categoryOptions : (CATEGORIES as any)}
                                   value={selectedValues}
-                                  onValueChange={field.onChange}
+                                  onValueChange={(vals) => {
+                                    field.onChange(vals)
+                                    // Also sync other_category_ids with matching category IDs
+                                    const matchedIds = (vals || []).map((nameOrId: string) => {
+                                      const matched = dbCategories.find((c: any) => (c.name || c.employee_category_name) === nameOrId || String(c.employee_category_id || c.id) === String(nameOrId))
+                                      return matched ? Number(matched.employee_category_id || matched.id) : (Number(nameOrId) || null)
+                                    }).filter(Boolean)
+                                    setValue('other_category_ids', matchedIds)
+                                  }}
                                 >
                                   <ComboboxChips ref={anchor} className="w-full bg-background border border-input">
                                     <ComboboxValue>
@@ -1972,41 +2296,51 @@ export default function StaffForm() {
                         <div className="flex items-center gap-3">
                           <Controller
                             control={control}
-                            name="view_other_managers"
+                            name="can_view_manager"
                             render={({ field }) => (
                               <Switch
-                                id="view_other_managers"
+                                id="can_view_manager"
                                 checked={field.value}
-                                onCheckedChange={field.onChange}
+                                onCheckedChange={(chk) => {
+                                  field.onChange(chk)
+                                  setValue('view_other_managers', chk)
+                                }}
                               />
                             )}
                           />
                           <div>
-                            <Label htmlFor="view_other_managers" className="text-[13px] font-medium text-foreground cursor-pointer select-none">
+                            <Label htmlFor="can_view_manager" className="text-[13px] font-medium text-foreground cursor-pointer select-none">
                               View Other Managers
                             </Label>
                             <span className="text-[10px] text-muted-foreground block mt-0.5">
-                              Manager can view and manage other managers accross categories
+                              Manager can view and manage other managers across categories
                             </span>
                           </div>
                         </div>
 
                         <div>
-                          <Label htmlFor="custom_designation" className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
+                          <Label htmlFor="designation_id_perm" className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
                             Select Designation (For custom permissions)
                           </Label>
                           <Controller
                             control={control}
-                            name="custom_designation"
+                            name="designation_id"
                             render={({ field }) => (
-                              <Select onValueChange={field.onChange} value={field.value || ""}>
-                                <SelectTrigger id="custom_designation">
+                              <Select onValueChange={field.onChange} value={field.value ? String(field.value) : "none"}>
+                                <SelectTrigger id="designation_id_perm">
                                   <SelectValue placeholder="Select designation" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Sales Executive">Sales Executive</SelectItem>
-                                  <SelectItem value="Supervisor">Supervisor</SelectItem>
-                                  <SelectItem value="Director">Director</SelectItem>
+                                  <SelectItem value="none">None</SelectItem>
+                                  {dbDesignations.map((d: any) => {
+                                    const desId = String(d.designation_id || d.id)
+                                    const desName = d.designation_name || d.name || `Designation #${desId}`
+                                    return (
+                                      <SelectItem key={desId} value={desId}>
+                                        {desName}
+                                      </SelectItem>
+                                    )
+                                  })}
                                 </SelectContent>
                               </Select>
                             )}
@@ -2016,12 +2350,12 @@ export default function StaffForm() {
                     )}
 
                     <div>
-                      <Label htmlFor="designation_id" className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
+                      <Label htmlFor="title" className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
                         Designation Name
                       </Label>
                       <Input
-                        id="designation_id"
-                        {...register('designation_id')}
+                        id="title"
+                        {...register('title')}
                         placeholder="Sales Executive"
                       />
                     </div>
@@ -2150,12 +2484,10 @@ export default function StaffForm() {
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+            </div>
 
             {/* ==================== ATTENDANCE SETTINGS TAB ==================== */}
-            {activeTab === 'attendance' && (
-              <div className="space-y-6">
+            <div className={cn("space-y-6", activeTab !== 'attendance' && "hidden")}>
                 <div className="border border-border rounded-xl p-6 bg-card space-y-6">
 
                   {/* Row 1: Mobile & Multiple Attendance */}
@@ -2619,7 +2951,9 @@ export default function StaffForm() {
                                       <img
                                         src={doc.url}
                                         alt={doc.name}
-                                        className="w-10 h-10 object-cover rounded-full border border-border shrink-0"
+                                        onClick={() => openLightbox(doc.url, doc.name)}
+                                        className="w-10 h-10 object-cover rounded-full border border-border shrink-0 cursor-pointer hover:opacity-85 transition-opacity"
+                                        title="Click to preview face image"
                                       />
                                       <div className="min-w-0">
                                         <span className="text-[12px] font-semibold text-foreground block truncate">
@@ -2661,7 +2995,9 @@ export default function StaffForm() {
                                   <img
                                     src={doc.url}
                                     alt={doc.name}
-                                    className="size-full object-cover rounded-xl"
+                                    onClick={() => openLightbox(doc.url, doc.name)}
+                                    className="size-full object-cover rounded-xl cursor-pointer hover:opacity-85 transition-opacity"
+                                    title="Click to preview face image"
                                   />
                                   <button
                                     type="button"
@@ -2698,7 +3034,19 @@ export default function StaffForm() {
                           control={control}
                           name="leave_template"
                           render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value || "none"}>
+                            <Select
+                              onValueChange={(val) => {
+                                field.onChange(val)
+                                setValue('assigned_leave_template', val === 'none' ? null : val)
+                                const matched = dbLeaveTemplates.find((t: any) => String(t.leave_template_id || t.id) === String(val))
+                                if (matched && Array.isArray(matched.leaves_applicable)) {
+                                  setValue('leaves', matched.leaves_applicable.map((l: any) => ({ ...l })))
+                                } else {
+                                  setValue('leaves', [])
+                                }
+                              }}
+                              value={field.value || "none"}
+                            >
                               <SelectTrigger id="leave_template">
                                 <SelectValue placeholder="Select leave template" />
                               </SelectTrigger>
@@ -2706,7 +3054,7 @@ export default function StaffForm() {
                                 <SelectItem value="none">None (Manual Leaves)</SelectItem>
                                 {dbLeaveTemplates.map((tpl: any) => (
                                   <SelectItem key={tpl.leave_template_id || tpl.id} value={String(tpl.leave_template_id || tpl.id)}>
-                                    {tpl.template_name || tpl.name}
+                                    {tpl.leave_template_name || tpl.template_name || tpl.name || `Template #${tpl.leave_template_id || tpl.id}`}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -2792,12 +3140,10 @@ export default function StaffForm() {
                   </div>
 
                 </div>
-              </div>
-            )}
+            </div>
 
             {/* ==================== PAYROLL & OVERTIME TAB ==================== */}
-            {activeTab === 'payroll' && (
-              <div className="space-y-6">
+            <div className={cn("space-y-6", activeTab !== 'payroll' && "hidden")}>
                 <div className="border border-border rounded-xl p-6 bg-card space-y-6">
 
                   {/* Pay Type & Monthly Salary */}
@@ -2840,216 +3186,291 @@ export default function StaffForm() {
                     </div>
                   </div>
 
-                  {/* Week-Off Extra Payment & Week-Off Day */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border/50">
-                    <div className="flex items-center gap-3">
+                  {/* Week-Off Extra Payment, Week-Off as Overtime, and Week-Off Day */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-border/50 items-start">
+                    <div className="flex items-start gap-3">
                       <Controller
                         control={control}
-                        name="week_off_extra_payment"
+                        name="week_off_payment"
                         render={({ field }) => (
-                          <Switch
-                            id="week_off_extra_payment"
+                          <Checkbox
+                            id="week_off_payment"
                             checked={field.value}
-                            onCheckedChange={field.onChange}
+                            onCheckedChange={(chk) => {
+                              field.onChange(chk)
+                              setValue('week_off_extra_payment', chk)
+                            }}
+                            className="mt-1"
                           />
                         )}
                       />
                       <div>
-                        <Label htmlFor="week_off_extra_payment" className="text-[13px] font-medium text-foreground cursor-pointer select-none">
+                        <Label htmlFor="week_off_payment" className="text-xs font-medium text-foreground cursor-pointer select-none">
                           Week-Off Extra Payment
                         </Label>
-                        <span className="text-[10px] text-muted-foreground block mt-0.5">
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
                           Enable extra payment for week-off work
-                        </span>
+                        </p>
                       </div>
                     </div>
 
-                    {weekOffExtraPayment && (
+                    <div className="flex items-start gap-3">
+                      <Controller
+                        control={control}
+                        name="week_off_as_overtime"
+                        render={({ field }) => (
+                          <Checkbox
+                            id="week_off_as_overtime"
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            className="mt-1"
+                          />
+                        )}
+                      />
                       <div>
-                        <Label htmlFor="week_off_day" className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
-                          Week-Off Day
+                        <Label htmlFor="week_off_as_overtime" className="text-xs font-medium text-foreground cursor-pointer select-none">
+                          Week-Off as Overtime
                         </Label>
-                        <Controller
-                          control={control}
-                          name="week_off_day"
-                          render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value || ""}>
-                              <SelectTrigger id="week_off_day">
-                                <SelectValue placeholder="Select day" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Sunday">Sunday</SelectItem>
-                                <SelectItem value="Saturday">Saturday</SelectItem>
-                                <SelectItem value="Friday">Friday</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Count week-off work as overtime
+                        </p>
                       </div>
-                    )}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="week_off_day_number" className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
+                        Week-Off Day
+                      </Label>
+                      <Controller
+                        control={control}
+                        name="week_off_day_number"
+                        render={({ field }) => (
+                          <Select
+                            onValueChange={(val) => {
+                              const numVal = val === "" ? null : Number(val)
+                              field.onChange(numVal)
+                              const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+                              if (numVal != null && dayNames[numVal]) {
+                                setValue('week_off_day', dayNames[numVal])
+                              }
+                            }}
+                            value={field.value !== null && field.value !== undefined ? String(field.value) : "0"}
+                          >
+                            <SelectTrigger id="week_off_day_number">
+                              <SelectValue placeholder="Select day" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">Monday</SelectItem>
+                              <SelectItem value="2">Tuesday</SelectItem>
+                              <SelectItem value="3">Wednesday</SelectItem>
+                              <SelectItem value="4">Thursday</SelectItem>
+                              <SelectItem value="5">Friday</SelectItem>
+                              <SelectItem value="6">Saturday</SelectItem>
+                              <SelectItem value="0">Sunday</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </div>
                   </div>
 
-                  {/* Applicable for Overtime & Overtime Starts After */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border/50">
-                    <div className="flex items-center gap-3">
+                  {/* Holiday Extra Payment & Holiday as Overtime */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border/50 items-start">
+                    <div className="flex items-start gap-3">
+                      <Controller
+                        control={control}
+                        name="holiday_extra_payment"
+                        render={({ field }) => (
+                          <Checkbox
+                            id="holiday_extra_payment"
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            className="mt-1"
+                          />
+                        )}
+                      />
+                      <div>
+                        <Label htmlFor="holiday_extra_payment" className="text-xs font-medium text-foreground cursor-pointer select-none">
+                          Holiday Extra Payment
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Enable extra payment for holiday work
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <Controller
+                        control={control}
+                        name="holiday_as_overtime"
+                        render={({ field }) => (
+                          <Checkbox
+                            id="holiday_as_overtime"
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            className="mt-1"
+                          />
+                        )}
+                      />
+                      <div>
+                        <Label htmlFor="holiday_as_overtime" className="text-xs font-medium text-foreground cursor-pointer select-none">
+                          Holiday as Overtime
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Count holiday work as overtime
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Applicable for Overtime & Overtime Configuration */}
+                  <div className="pt-4 border-t border-border/50 space-y-4">
+                    <div className="flex items-start gap-3">
                       <Controller
                         control={control}
                         name="applicable_for_overtime"
                         render={({ field }) => (
-                          <Switch
+                          <Checkbox
                             id="applicable_for_overtime"
                             checked={field.value}
                             onCheckedChange={field.onChange}
+                            className="mt-1"
                           />
                         )}
                       />
                       <div>
-                        <Label htmlFor="applicable_for_overtime" className="text-[13px] font-medium text-foreground cursor-pointer select-none">
+                        <Label htmlFor="applicable_for_overtime" className="text-xs font-medium text-foreground cursor-pointer select-none">
                           Applicable for Overtime
                         </Label>
-                        <span className="text-[10px] text-muted-foreground block mt-0.5">
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
                           Enable overtime calculation for this employee
-                        </span>
+                        </p>
                       </div>
                     </div>
 
                     {applicableForOvertime && (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="overtime_starts_after_hours" className="text-[11px] font-medium text-muted-foreground mb-1 block">
-                            Overtime Starts After (Hours)
-                          </Label>
-                          <Input
-                            id="overtime_starts_after_hours"
-                            type="number"
-                            {...register('overtime_starts_after_hours')}
+                      <div className="space-y-4 pl-7">
+                        <div className="flex items-start gap-3">
+                          <Controller
+                            control={control}
+                            name="auto_overtime"
+                            render={({ field }) => (
+                              <Checkbox
+                                id="auto_overtime"
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                className="mt-1"
+                              />
+                            )}
                           />
+                          <div>
+                            <Label htmlFor="auto_overtime" className="text-xs font-medium text-foreground cursor-pointer select-none">
+                              Auto Overtime
+                            </Label>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              Automatically calculate overtime for this employee
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <Label htmlFor="overtime_starts_after_minutes" className="text-[11px] font-medium text-muted-foreground mb-1 block">
-                            Minutes
-                          </Label>
-                          <Input
-                            id="overtime_starts_after_minutes"
-                            type="number"
-                            {...register('overtime_starts_after_minutes')}
-                          />
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="overtime_hours" className="text-[11px] font-medium text-muted-foreground mb-1 block">
+                              Overtime Starts After (Hours)
+                            </Label>
+                            <Input
+                              id="overtime_hours"
+                              type="number"
+                              min="0"
+                              {...register('overtime_hours')}
+                              placeholder="0"
+                              className="h-9 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="overtime_minutes" className="text-[11px] font-medium text-muted-foreground mb-1 block">
+                              Minutes
+                            </Label>
+                            <Input
+                              id="overtime_minutes"
+                              type="number"
+                              min="0"
+                              max="59"
+                              {...register('overtime_minutes')}
+                              placeholder="0"
+                              className="h-9 text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        {!autoOvertime && (
+                          <div>
+                            <Label htmlFor="overtime_hourly_rate" className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
+                              Overtime Hourly Rate
+                            </Label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-2.5 text-sm text-muted-foreground">₹</span>
+                              <Input
+                                id="overtime_hourly_rate"
+                                className="pl-7 h-9 text-xs"
+                                {...register('overtime_hourly_rate')}
+                                placeholder="Enter hourly overtime rate"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Overtime Calculation Information Block */}
+                        <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl flex items-center justify-between">
+                          <div className="space-y-1 text-left">
+                            <h4 className="text-[13px] font-semibold text-foreground">Overtime Calculation</h4>
+                            <p className="text-[11px] text-muted-foreground">Based on ₹{parseFloat(salaryPerMonth) || 0}/month</p>
+                            <p className="text-[11px] text-muted-foreground">Overtime Hourly rate:</p>
+
+                            {autoOvertime ? (
+                              <span className="text-[10px] text-muted-foreground/80 mt-1 block">**Calculation shown as per current month</span>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground mt-1 block">
+                                Overtime will be calculated after {watch('overtime_hours') || 0} hours and {watch('overtime_minutes') || 0} minutes of work
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[14px] font-bold text-amber-600 dark:text-amber-500">
+                            ₹{autoOvertime
+                              ? ((parseFloat(salaryPerMonth) || 0) / (30 * 8)).toFixed(2)
+                              : (parseFloat(watch('overtime_hourly_rate')) || 0).toFixed(2)
+                            }/hour
+                          </span>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Overtime Hourly Rate (ONLY if applicableForOvertime is enabled AND autoOvertime is OFF) */}
-                  {applicableForOvertime && !autoOvertime && (
-                    <div className="pt-4 border-t border-border/50">
-                      <Label htmlFor="overtime_hourly_rate" className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
-                        Overtime Hourly Rate
-                      </Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-sm text-muted-foreground">₹</span>
-                        <Input
-                          id="overtime_hourly_rate"
-                          className="pl-7"
-                          {...register('overtime_hourly_rate')}
-                          placeholder="Enter hourly overtime rate"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Auto Overtime Switch & Dynamic Overtime Calculation Card */}
-                  {applicableForOvertime && (
-                    <div className="space-y-4 pt-4 border-t border-border/50">
-                      <div className="flex items-center gap-3">
-                        <Controller
-                          control={control}
-                          name="auto_overtime"
-                          render={({ field }) => (
-                            <Switch
-                              id="auto_overtime"
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          )}
-                        />
-                        <div>
-                          <Label htmlFor="auto_overtime" className="text-[13px] font-medium text-foreground cursor-pointer select-none">
-                            Auto Overtime
-                          </Label>
-                          <span className="text-[10px] text-muted-foreground block mt-0.5">
-                            Automatically calculate overtime for this employee
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Overtime Calculation Information Block */}
-                      <div className="bg-amber-500/5 border border-amber-500/15 p-4 rounded-xl flex items-center justify-between">
-                        <div className="space-y-1 text-left">
-                          <h4 className="text-[13px] font-semibold text-foreground">Overtime Calculation</h4>
-                          <p className="text-[10px] text-muted-foreground">Based on ₹{parseFloat(salaryPerMonth) || 0}/month</p>
-                          <p className="text-[10px] text-muted-foreground">Overtime Hourly rate:</p>
-
-                          {autoOvertime ? (
-                            <span className="text-[9px] text-muted-foreground/80 mt-2 block">**Calculation shown as per current month</span>
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground mt-2 block">
-                              Overtime will be calculated after {overtimeStartsAfterHours || 0} hours and {overtimeStartsAfterMinutes || 0} minutes of work
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[13px] font-bold text-amber-600 dark:text-amber-500">
-                          ₹{autoOvertime
-                            ? ((parseFloat(salaryPerMonth) || 0) * 2).toFixed(1)
-                            : (parseFloat(overtimeHourlyRate) || 0).toFixed(1)
-                          }/hour
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* View Self Salary & Self Odometer Reading Switches */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border/50">
-                    <div className="flex items-center gap-3">
+                  {/* View Self Salary Checkbox */}
+                  <div className="pt-4 border-t border-border/50">
+                    <div className="flex items-start gap-3">
                       <Controller
                         control={control}
-                        name="view_self_salary"
+                        name="can_view_self_salary"
                         render={({ field }) => (
-                          <Switch
-                            id="view_self_salary"
+                          <Checkbox
+                            id="can_view_self_salary"
                             checked={field.value}
-                            onCheckedChange={field.onChange}
+                            onCheckedChange={(chk) => {
+                              field.onChange(chk)
+                              setValue('view_self_salary', chk)
+                            }}
+                            className="mt-1"
                           />
                         )}
                       />
                       <div>
-                        <Label htmlFor="view_self_salary" className="text-[13px] font-medium text-foreground cursor-pointer select-none">
+                        <Label htmlFor="can_view_self_salary" className="text-xs font-medium text-foreground cursor-pointer select-none">
                           View Self Salary
                         </Label>
-                        <span className="text-[10px] text-muted-foreground block mt-0.5">
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
                           Allow employee to view their own salary details
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <Controller
-                        control={control}
-                        name="self_odometer_reading"
-                        render={({ field }) => (
-                          <Switch
-                            id="self_odometer_reading_payroll"
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        )}
-                      />
-                      <div>
-                        <Label htmlFor="self_odometer_reading_payroll" className="text-[13px] font-medium text-foreground cursor-pointer select-none">
-                          Self Odometer Reading
-                        </Label>
-                        <span className="text-[10px] text-muted-foreground block mt-0.5">
-                          Allow employee to enter their own odometer reading
-                        </span>
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -3057,24 +3478,63 @@ export default function StaffForm() {
                   {/* Select Payroll Template */}
                   <div className="pt-4 border-t border-border/50">
                     <div>
-                      <Label htmlFor="payroll_template" className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
+                      <Label htmlFor="payroll_template_id" className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
                         Select Payroll Template
                       </Label>
                       <Controller
                         control={control}
-                        name="payroll_template"
+                        name="payroll_template_id"
                         render={({ field }) => (
-                          <Select onValueChange={field.onChange} value={field.value || "none"}>
-                            <SelectTrigger id="payroll_template">
-                              <SelectValue placeholder="Select template" />
+                          <Select
+                            onValueChange={(val) => {
+                              const numericVal = (!val || val === 'none') ? null : Number(val)
+                              field.onChange(numericVal)
+                              setValue('payroll_template', val)
+
+                              if (numericVal && dbBenefits && dbDeductions) {
+                                const templateBenefits = (dbBenefits || [])
+                                  .filter((item: any) => {
+                                    const headTempId = item.payroll_template_id?.payroll_template_id ?? item.payroll_template_id
+                                    return Number(headTempId) === Number(numericVal)
+                                  })
+                                  .map((item: any) => Number(item.payroll_head_id || item.id))
+
+                                const templateDeductions = (dbDeductions || [])
+                                  .filter((item: any) => {
+                                    const headTempId = item.payroll_template_id?.payroll_template_id ?? item.payroll_template_id
+                                    return Number(headTempId) === Number(numericVal)
+                                  })
+                                  .map((item: any) => Number(item.payroll_head_id || item.id))
+
+                                setBenefits(prev => prev.map(b => ({
+                                  ...b,
+                                  selected: templateBenefits.includes(Number(b.id || b.payroll_head_id))
+                                })))
+                                setDeductions(prev => prev.map(d => ({
+                                  ...d,
+                                  selected: templateDeductions.includes(Number(d.id || d.payroll_head_id))
+                                })))
+                              } else if (!numericVal) {
+                                setBenefits(prev => prev.map(b => ({ ...b, selected: false })))
+                                setDeductions(prev => prev.map(d => ({ ...d, selected: false })))
+                              }
+                            }}
+                            value={field.value !== null && field.value !== undefined && String(field.value) !== '' ? String(field.value) : 'none'}
+                          >
+                            <SelectTrigger id="payroll_template_id">
+                              <SelectValue placeholder="Select payroll template" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              {dbPayrollTemplates.map((t: any) => (
-                                <SelectItem key={t.id || t.template_name} value={String(t.id)}>
-                                  {t.template_name || t.name}
-                                </SelectItem>
-                              ))}
+                              <SelectItem value="none">Select payroll template</SelectItem>
+                              {dbPayrollTemplates.map((t: any) => {
+                                const templateId = String(t.payroll_template_id ?? t.id)
+                                const templateName = t.payroll_template_name ?? t.name ?? t.template_name ?? `Template #${templateId}`
+                                return (
+                                  <SelectItem key={templateId} value={templateId}>
+                                    {templateName}
+                                  </SelectItem>
+                                )
+                              })}
                             </SelectContent>
                           </Select>
                         )}
@@ -3113,7 +3573,7 @@ export default function StaffForm() {
                         {benefitsExpanded && (
                           <div className="p-4 border-t border-border bg-muted/10 space-y-3">
                             {benefits.map((b) => (
-                              <div key={b.id} className="flex items-center gap-3">
+                              <div key={b.id} className="flex items-start gap-3">
                                 <Checkbox
                                   id={`benefit-${b.id}`}
                                   checked={b.selected}
@@ -3122,9 +3582,14 @@ export default function StaffForm() {
                                   }}
                                   className="mt-0.5"
                                 />
-                                <Label htmlFor={`benefit-${b.id}`} className="text-xs text-foreground cursor-pointer select-none">
-                                  {b.label}
-                                </Label>
+                                <div>
+                                  <Label htmlFor={`benefit-${b.id}`} className="text-xs font-medium text-foreground cursor-pointer select-none">
+                                    {b.label}
+                                  </Label>
+                                  {b.helpText && (
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">{b.helpText}</p>
+                                  )}
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -3147,7 +3612,7 @@ export default function StaffForm() {
                         {deductionsExpanded && (
                           <div className="p-4 border-t border-border bg-muted/10 space-y-3">
                             {deductions.map((d) => (
-                              <div key={d.id} className="flex items-center gap-3">
+                              <div key={d.id} className="flex items-start gap-3">
                                 <Checkbox
                                   id={`deduction-${d.id}`}
                                   checked={d.selected}
@@ -3156,9 +3621,14 @@ export default function StaffForm() {
                                   }}
                                   className="mt-0.5"
                                 />
-                                <Label htmlFor={`deduction-${d.id}`} className="text-xs text-foreground cursor-pointer select-none">
-                                  {d.label}
-                                </Label>
+                                <div>
+                                  <Label htmlFor={`deduction-${d.id}`} className="text-xs font-medium text-foreground cursor-pointer select-none">
+                                    {d.label}
+                                  </Label>
+                                  {d.helpText && (
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">{d.helpText}</p>
+                                  )}
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -3168,8 +3638,7 @@ export default function StaffForm() {
                   </div>
 
                 </div>
-              </div>
-            )}
+            </div>
           </div>
 
           {/* Bottom Actions Row inside Content Pane */}
@@ -3198,6 +3667,43 @@ export default function StaffForm() {
           </div>
         </div>
       </Panel>
+
+      {/* Save Changes Confirmation AlertDialog */}
+      <AlertDialog open={isConfirmSaveOpen} onOpenChange={setIsConfirmSaveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save Changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to save changes to this staff member's profile? Only the modified fields will be updated.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={addOrEditStaffMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={addOrEditStaffMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault()
+                if (pendingFormData) {
+                  addOrEditStaffMutation.mutate({ formData: pendingFormData, isPartialEdit: true })
+                  setIsConfirmSaveOpen(false)
+                }
+              }}
+            >
+              {addOrEditStaffMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Image Lightbox for Fullscreen Attachment Previews */}
+      <ImageLightbox
+        isOpen={lightboxState.isOpen}
+        onClose={closeLightbox}
+        src={lightboxState.src}
+        title={lightboxState.title}
+      />
     </form>
   )
 }

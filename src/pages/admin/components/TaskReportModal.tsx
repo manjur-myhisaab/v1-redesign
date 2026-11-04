@@ -75,7 +75,9 @@ export default function TaskReportModal({
   const currentYear = String(currentDate.getFullYear())
 
   // --- Filter states ---
-  const [dateScope, setDateScope] = useState<'all' | 'month' | 'custom'>('month')
+  const [dateScope, setDateScope] = useState<'all' | 'month' | 'custom'>(
+    'month',
+  )
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth)
   const [selectedYear, setSelectedYear] = useState<string>(currentYear)
   const [customStartDate, setCustomStartDate] = useState<string>('')
@@ -123,7 +125,8 @@ export default function TaskReportModal({
       // Search filter
       if (employeeSearch.trim()) {
         const q = employeeSearch.trim().toLowerCase()
-        const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.toLowerCase()
+        const fullName =
+          `${emp.first_name || ''} ${emp.last_name || ''}`.toLowerCase()
         const email = (emp.email || '').toLowerCase()
         const title = (emp.title || '').toLowerCase()
         return fullName.includes(q) || email.includes(q) || title.includes(q)
@@ -133,15 +136,23 @@ export default function TaskReportModal({
     })
   }, [firmEmployees, selectedCategory, employeeSearch])
 
-  const filteredEmpIds = useMemo(() => filteredEmployees.map((e) => String(e.id)), [filteredEmployees])
+  const filteredEmpIds = useMemo(
+    () => filteredEmployees.map((e) => String(e.id)),
+    [filteredEmployees],
+  )
   const isAllEmployeesSelected =
-    filteredEmpIds.length > 0 && filteredEmpIds.every((id) => selectedEmployeeIds.includes(id))
+    filteredEmpIds.length > 0 &&
+    filteredEmpIds.every((id) => selectedEmployeeIds.includes(id))
 
   const handleToggleSelectAllEmployees = () => {
     if (isAllEmployeesSelected) {
-      setSelectedEmployeeIds((prev) => prev.filter((id) => !filteredEmpIds.includes(id)))
+      setSelectedEmployeeIds((prev) =>
+        prev.filter((id) => !filteredEmpIds.includes(id)),
+      )
     } else {
-      setSelectedEmployeeIds((prev) => Array.from(new Set([...prev, ...filteredEmpIds])))
+      setSelectedEmployeeIds((prev) =>
+        Array.from(new Set([...prev, ...filteredEmpIds])),
+      )
     }
   }
 
@@ -159,7 +170,9 @@ export default function TaskReportModal({
     if (dateScope === 'month' && selectedMonth && selectedYear) {
       const m = Number(selectedMonth)
       const y = Number(selectedYear)
-      const startIso = new Date(Date.UTC(y, m - 1, 1)).toISOString().split('T')[0]
+      const startIso = new Date(Date.UTC(y, m - 1, 1))
+        .toISOString()
+        .split('T')[0]
       const endIso = new Date(Date.UTC(y, m, 0)).toISOString().split('T')[0]
       result = result.filter((t) => {
         if (!t.task_duedate) return false
@@ -181,7 +194,9 @@ export default function TaskReportModal({
 
     // Priority filter
     if (priorityFilter !== 'all') {
-      result = result.filter((t) => (t.task_priority || 'medium') === priorityFilter)
+      result = result.filter(
+        (t) => (t.task_priority || 'medium') === priorityFilter,
+      )
     }
 
     // Employee filter (if any selected)
@@ -196,7 +211,8 @@ export default function TaskReportModal({
         if (Array.isArray(task.assignedToOthers)) {
           return task.assignedToOthers.some((other) => {
             const otherId =
-              typeof other?.directus_users_id === 'object' && other?.directus_users_id !== null
+              typeof other?.directus_users_id === 'object' &&
+              other?.directus_users_id !== null
                 ? String(other.directus_users_id.id || '')
                 : String(other?.directus_users_id || '')
             return selectedEmployeeIds.includes(otherId)
@@ -230,15 +246,23 @@ export default function TaskReportModal({
     taskSearch,
   ])
 
-  const matchingTaskIds = useMemo(() => matchingTasks.map((t) => String(t.task_id)), [matchingTasks])
+  const matchingTaskIds = useMemo(
+    () => matchingTasks.map((t) => String(t.task_id)),
+    [matchingTasks],
+  )
   const isAllTasksSelected =
-    matchingTaskIds.length > 0 && matchingTaskIds.every((id) => selectedTaskIds.includes(id))
+    matchingTaskIds.length > 0 &&
+    matchingTaskIds.every((id) => selectedTaskIds.includes(id))
 
   const handleToggleSelectAllTasks = () => {
     if (isAllTasksSelected) {
-      setSelectedTaskIds((prev) => prev.filter((id) => !matchingTaskIds.includes(id)))
+      setSelectedTaskIds((prev) =>
+        prev.filter((id) => !matchingTaskIds.includes(id)),
+      )
     } else {
-      setSelectedTaskIds((prev) => Array.from(new Set([...prev, ...matchingTaskIds])))
+      setSelectedTaskIds((prev) =>
+        Array.from(new Set([...prev, ...matchingTaskIds])),
+      )
     }
   }
 
@@ -259,8 +283,10 @@ export default function TaskReportModal({
         customEndDate: dateScope === 'custom' ? customEndDate : undefined,
         firmName,
         creatorName,
-        selectedEmployeeIds: selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined,
-        selectedTaskIds: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
+        selectedEmployeeIds:
+          selectedEmployeeIds.length > 0 ? selectedEmployeeIds : undefined,
+        selectedTaskIds:
+          selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
         statusFilter,
         priorityFilter,
       })
@@ -287,7 +313,8 @@ export default function TaskReportModal({
                 Generate Task Report
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                Export comprehensive task logs, assignee breakdown, completion reports, and photo attachments to Excel (.xlsx).
+                Export comprehensive task logs, assignee breakdown, completion
+                reports, and photo attachments to Excel (.xlsx).
               </DialogDescription>
             </div>
           </div>
@@ -305,7 +332,9 @@ export default function TaskReportModal({
               </label>
               <Select
                 value={dateScope}
-                onValueChange={(val: 'all' | 'month' | 'custom') => setDateScope(val)}
+                onValueChange={(val: 'all' | 'month' | 'custom') =>
+                  setDateScope(val)
+                }
               >
                 <SelectTrigger className="h-8 text-xs bg-background">
                   <SelectValue />
@@ -324,13 +353,16 @@ export default function TaskReportModal({
                 {dateScope === 'month'
                   ? 'Select Month & Year'
                   : dateScope === 'custom'
-                  ? 'Select From & To Date'
-                  : 'Timeframe'}
+                    ? 'Select From & To Date'
+                    : 'Timeframe'}
               </label>
 
               {dateScope === 'month' ? (
                 <div className="grid grid-cols-2 gap-2">
-                  <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <Select
+                    value={selectedMonth}
+                    onValueChange={setSelectedMonth}
+                  >
                     <SelectTrigger className="h-8 text-xs bg-background">
                       <SelectValue />
                     </SelectTrigger>
@@ -380,7 +412,9 @@ export default function TaskReportModal({
 
             {/* 3. Status Filter */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">Status Filter</label>
+              <label className="text-xs font-semibold text-foreground">
+                Status Filter
+              </label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="h-8 text-xs bg-background">
                   <SelectValue />
@@ -396,7 +430,9 @@ export default function TaskReportModal({
 
             {/* 4. Priority Filter */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">Priority Filter</label>
+              <label className="text-xs font-semibold text-foreground">
+                Priority Filter
+              </label>
               <Select value={priorityFilter} onValueChange={setPriorityFilter}>
                 <SelectTrigger className="h-8 text-xs bg-background">
                   <SelectValue />
@@ -454,7 +490,9 @@ export default function TaskReportModal({
                         <button
                           key={cid}
                           type="button"
-                          onClick={() => setSelectedCategory(isSel ? 'all' : cid)}
+                          onClick={() =>
+                            setSelectedCategory(isSel ? 'all' : cid)
+                          }
                           className={cn(
                             'px-2.5 py-1 text-[11px] rounded-md font-medium border shrink-0 transition-colors cursor-pointer',
                             isSel
@@ -502,15 +540,21 @@ export default function TaskReportModal({
               {/* Scrollable employee checkbox list */}
               <div className="border border-border rounded-lg max-h-80 overflow-y-auto divide-y divide-border/60 bg-muted/10 flex-1">
                 {filteredEmployees.length === 0 ? (
-                  <p className="text-center text-xs text-muted-foreground py-12">No staff found</p>
+                  <p className="text-center text-xs text-muted-foreground py-12">
+                    No staff found
+                  </p>
                 ) : (
                   filteredEmployees.map((emp) => {
                     const id = String(emp.id)
                     const isChecked = selectedEmployeeIds.includes(id)
-                    const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || 'Staff'
+                    const fullName =
+                      `${emp.first_name || ''} ${emp.last_name || ''}`.trim() ||
+                      'Staff'
                     const catName =
-                      typeof emp.employee_category_id === 'object' && emp.employee_category_id !== null
-                        ? (emp.employee_category_id as any).employee_category_name
+                      typeof emp.employee_category_id === 'object' &&
+                      emp.employee_category_id !== null
+                        ? (emp.employee_category_id as any)
+                            .employee_category_name
                         : ''
 
                     return (
@@ -536,7 +580,9 @@ export default function TaskReportModal({
                             className="size-7 text-[10px] shrink-0"
                           />
                           <div className="flex flex-col min-w-0 flex-1">
-                            <span className="font-medium text-foreground truncate">{fullName}</span>
+                            <span className="font-medium text-foreground truncate">
+                              {fullName}
+                            </span>
                             {emp.title && (
                               <span className="text-[10px] text-muted-foreground truncate">
                                 {emp.title}
@@ -633,7 +679,10 @@ export default function TaskReportModal({
                             onClick={(e) => e.stopPropagation()}
                             className="size-4 shrink-0"
                           />
-                          <Badge variant="outline" className="text-[10px] font-mono shrink-0">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-mono shrink-0"
+                          >
                             #{t.task_id}
                           </Badge>
                           <div className="flex flex-col min-w-0 flex-1">
@@ -644,8 +693,14 @@ export default function TaskReportModal({
                               <span className="truncate max-w-[130px] font-medium text-foreground/80">
                                 {assigneeName}
                               </span>
-                              {t.task_duedate && <span>• Due: {t.task_duedate.split('T')[0]}</span>}
-                              {t.task_duetime && <span>({t.task_duetime})</span>}
+                              {t.task_duedate && (
+                                <span>
+                                  • Due: {t.task_duedate.split('T')[0]}
+                                </span>
+                              )}
+                              {t.task_duetime && (
+                                <span>({t.task_duetime})</span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -656,10 +711,14 @@ export default function TaskReportModal({
                               variant="secondary"
                               className={cn(
                                 'text-[9px] uppercase font-semibold h-4.5 px-1.5',
-                                t.task_priority === 'urgent' && 'text-rose-600 bg-rose-50 dark:bg-rose-950/40',
-                                t.task_priority === 'high' && 'text-orange-600 bg-orange-50 dark:bg-orange-950/40',
-                                t.task_priority === 'medium' && 'text-sky-600 bg-sky-50 dark:bg-sky-950/40',
-                                t.task_priority === 'low' && 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40',
+                                t.task_priority === 'urgent' &&
+                                  'text-rose-600 bg-rose-50 dark:bg-rose-950/40',
+                                t.task_priority === 'high' &&
+                                  'text-[#6f9ff1] bg-orange-50 dark:bg-orange-950/40',
+                                t.task_priority === 'medium' &&
+                                  'text-sky-600 bg-sky-50 dark:bg-sky-950/40',
+                                t.task_priority === 'low' &&
+                                  'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40',
                               )}
                             >
                               {t.task_priority}
@@ -711,7 +770,10 @@ export default function TaskReportModal({
               type="button"
               size="sm"
               onClick={handleGenerateReport}
-              disabled={isExporting || (matchingTasks.length === 0 && selectedTaskIds.length === 0)}
+              disabled={
+                isExporting ||
+                (matchingTasks.length === 0 && selectedTaskIds.length === 0)
+              }
               className="h-8 text-xs cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white font-medium gap-1.5 shadow-2xs"
             >
               {isExporting ? (

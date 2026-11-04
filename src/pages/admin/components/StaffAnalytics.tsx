@@ -1,13 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Users,
   UserCheck,
@@ -17,23 +17,23 @@ import {
   CalendarDays,
   Search,
   ChevronRight,
-} from 'lucide-react';
-import { formatTime } from '@/lib/timeUtils';
-import { useNavigate } from 'react-router-dom';
+} from 'lucide-react'
+import { formatTime } from '@/lib/timeUtils'
+import { useNavigate } from 'react-router-dom'
 
 interface StaffAnalyticsProps {
-  allStaff: any[];
-  statusMap: Map<string, any>;
-  totalEmployees: number;
-  presenceCount: number;
-  absenceCount: number;
-  notMarkedCount: number;
-  leaveCount: number;
-  lateCount: number;
-  earlyCount: number;
-  selectedDate: Date;
-  onDateSelect?: () => void;
-  isFetching?: boolean;
+  allStaff: any[]
+  statusMap: Map<string, any>
+  totalEmployees: number
+  presenceCount: number
+  absenceCount: number
+  notMarkedCount: number
+  leaveCount: number
+  lateCount: number
+  earlyCount: number
+  selectedDate: Date
+  onDateSelect?: () => void
+  isFetching?: boolean
 }
 
 export function StaffAnalytics({
@@ -49,21 +49,21 @@ export function StaffAnalytics({
   selectedDate,
   onDateSelect,
 }: StaffAnalyticsProps) {
-  const [activeMetric, setActiveMetric] = useState<string | null>(null);
-  const [modalSearch, setModalSearch] = useState('');
-  const navigate = useNavigate();
+  const [activeMetric, setActiveMetric] = useState<string | null>(null)
+  const [modalSearch, setModalSearch] = useState('')
+  const navigate = useNavigate()
 
   const formattedDate = useMemo(() => {
-    const today = new Date();
+    const today = new Date()
     if (selectedDate.toDateString() === today.toDateString()) {
-      return 'Today';
+      return 'Today'
     }
     return selectedDate.toLocaleDateString('en-GB', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
-    });
-  }, [selectedDate]);
+    })
+  }, [selectedDate])
 
   const cards = [
     {
@@ -81,7 +81,8 @@ export function StaffAnalytics({
       count: presenceCount,
       icon: UserCheck,
       color: 'text-emerald-600',
-      bgColor: 'bg-emerald-50/50 border-emerald-200/60 hover:border-emerald-300',
+      bgColor:
+        'bg-emerald-50/50 border-emerald-200/60 hover:border-emerald-300',
       badgeColor: 'bg-emerald-100/80 text-emerald-800',
     },
     {
@@ -129,77 +130,85 @@ export function StaffAnalytics({
       bgColor: 'bg-orange-50/50 border-orange-200/60 hover:border-orange-300',
       badgeColor: 'bg-orange-100/80 text-orange-800',
     },
-  ];
+  ]
 
   const filteredEmployeesByMetric = useMemo(() => {
-    if (!activeMetric) return [];
-    let list: any[] = [];
+    if (!activeMetric) return []
+    let list: any[] = []
     switch (activeMetric) {
       case 'Present':
         list = allStaff.filter(
           (emp) =>
-            statusMap.get(emp.id)?.status === 'present' && emp.emp_status !== 'archived'
-        );
-        break;
+            statusMap.get(emp.id)?.status === 'present' &&
+            emp.emp_status !== 'archived',
+        )
+        break
       case 'Absent':
         list = allStaff.filter(
           (emp) =>
-            statusMap.get(emp.id)?.status === 'absent' && emp.emp_status !== 'archived'
-        );
-        break;
+            statusMap.get(emp.id)?.status === 'absent' &&
+            emp.emp_status !== 'archived',
+        )
+        break
       case 'Not Marked':
         list = allStaff.filter(
           (emp) =>
             statusMap.get(emp.id)?.status === 'not marked' &&
-            emp.emp_status !== 'archived'
-        );
-        break;
+            emp.emp_status !== 'archived',
+        )
+        break
       case 'Leave':
         list = allStaff.filter(
           (emp) =>
-            statusMap.get(emp.id)?.status === 'leave' && emp.emp_status !== 'archived'
-        );
-        break;
+            statusMap.get(emp.id)?.status === 'leave' &&
+            emp.emp_status !== 'archived',
+        )
+        break
       case 'Late':
         list = allStaff.filter(
           (emp) =>
             statusMap.get(emp.id)?.attendance_data?.late &&
             !statusMap.get(emp.id)?.attendance_data?.absent &&
-            emp.emp_status !== 'archived'
-        );
-        break;
+            emp.emp_status !== 'archived',
+        )
+        break
       case 'Early':
         list = allStaff.filter(
           (emp) =>
             statusMap.get(emp.id)?.attendance_data?.early_exit &&
             !statusMap.get(emp.id)?.attendance_data?.absent &&
-            emp.emp_status !== 'archived'
-        );
-        break;
+            emp.emp_status !== 'archived',
+        )
+        break
       default:
-        list = allStaff.filter((emp) => emp.emp_status !== 'archived');
-        break;
+        list = allStaff.filter((emp) => emp.emp_status !== 'archived')
+        break
     }
 
-    if (!modalSearch.trim()) return list;
-    const q = modalSearch.toLowerCase().trim();
+    if (!modalSearch.trim()) return list
+    const q = modalSearch.toLowerCase().trim()
     return list.filter((emp) => {
-      const name = (emp.name || '').toLowerCase();
-      const phone = (emp.phone || '').toLowerCase();
-      const dept = (emp.department || '').toLowerCase();
-      const num = (emp.employee_no || '').toLowerCase();
+      const name = (emp.name || '').toLowerCase()
+      const phone = (emp.phone || '').toLowerCase()
+      const dept = (emp.department || '').toLowerCase()
+      const num = (emp.employee_no || '').toLowerCase()
       return (
-        name.includes(q) || phone.includes(q) || dept.includes(q) || num.includes(q)
-      );
-    });
-  }, [activeMetric, allStaff, statusMap, modalSearch]);
+        name.includes(q) ||
+        phone.includes(q) ||
+        dept.includes(q) ||
+        num.includes(q)
+      )
+    })
+  }, [activeMetric, allStaff, statusMap, modalSearch])
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
           <span>Attendance Overview</span>
-          <span className="text-xs font-normal text-muted-foreground">({formattedDate})</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            ({formattedDate})
+          </span>
         </h3>
         {onDateSelect && (
           <button
@@ -214,13 +223,13 @@ export function StaffAnalytics({
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
         {cards.map((card) => {
-          const Icon = card.icon;
+          const Icon = card.icon
           return (
             <div
               key={card.key}
               onClick={() => {
-                setActiveMetric(card.key);
-                setModalSearch('');
+                setActiveMetric(card.key)
+                setModalSearch('')
               }}
               className={`rounded-xl border p-3.5 transition-all duration-150 cursor-pointer shadow-xs hover:shadow-sm ${card.bgColor}`}
             >
@@ -239,7 +248,7 @@ export function StaffAnalytics({
                 </span>
               </div>
             </div>
-          );
+          )
         })}
       </div>
 
@@ -251,7 +260,9 @@ export function StaffAnalytics({
         <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-6 overflow-hidden">
           <DialogHeader className="pb-3 border-b">
             <DialogTitle className="text-lg font-semibold flex items-center justify-between">
-              <span>{activeMetric} Employees ({filteredEmployeesByMetric.length})</span>
+              <span>
+                {activeMetric} Employees ({filteredEmployeesByMetric.length})
+              </span>
             </DialogTitle>
             <div className="pt-2">
               <div className="relative">
@@ -274,15 +285,15 @@ export function StaffAnalytics({
               </p>
             ) : (
               filteredEmployeesByMetric.map((emp) => {
-                const attn = statusMap.get(emp.id);
-                const inTime = attn?.attendance_data?.in_time;
-                const outTime = attn?.attendance_data?.out_time;
+                const attn = statusMap.get(emp.id)
+                const inTime = attn?.attendance_data?.in_time
+                const outTime = attn?.attendance_data?.out_time
 
                 return (
                   <div
                     key={emp.id}
                     onClick={() => {
-                      navigate(`/admin/employees/${emp.id}`);
+                      navigate(`/admin/employees/${emp.id}`)
                     }}
                     className="flex items-center justify-between py-3 px-2 hover:bg-muted/40 rounded-lg cursor-pointer transition-colors"
                   >
@@ -319,13 +330,12 @@ export function StaffAnalytics({
                       </Badge>
                     </div>
                   </div>
-                );
+                )
               })
             )}
           </div>
         </DialogContent>
       </Dialog>
     </div>
-  );
+  )
 }
-

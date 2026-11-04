@@ -172,11 +172,11 @@ export default function StaffProfile() {
                     <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => navigate('/admin/staff')}
+                        onClick={() => navigate(-1)}
                         className="gap-2 text-xs font-medium text-muted-foreground hover:text-foreground h-8 px-2.5"
                     >
                         <ArrowLeft className="size-4" />
-                        <span>Back to Staff List</span>
+                        <span>Back</span>
                     </Button>
                     <div className="h-4 w-px bg-border" />
                     <span className="text-xs font-bold text-foreground">

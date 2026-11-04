@@ -17,7 +17,9 @@ export default function GeofencingSettings() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const [highlightedFence, setHighlightedFence] = useState<Geofence | null>(null)
+  const [highlightedFence, setHighlightedFence] = useState<Geofence | null>(
+    null,
+  )
 
   // 1. Fetch geofences with exact v1 fields
   const { data: geoFenceData = [], isLoading } = useQuery({
@@ -31,7 +33,7 @@ export default function GeofencingSettings() {
             'employee_id.*',
           ],
           sort: ['date_created'],
-        })
+        }),
       )
       if (Array.isArray(res)) return res
       if (Array.isArray((res as any)?.data)) return (res as any).data
@@ -104,9 +106,9 @@ export default function GeofencingSettings() {
         map: mapInstanceRef.current,
         center: loc,
         radius: rad,
-        fillColor: '#FF6A00',
+        fillColor: '#6f9ff1',
         fillOpacity: 0.2,
-        strokeColor: '#FF6A00',
+        strokeColor: '#6f9ff1',
         strokeOpacity: 0.6,
         strokeWeight: 2,
       })
@@ -147,7 +149,7 @@ export default function GeofencingSettings() {
       queryClient.invalidateQueries({ queryKey: ['geo_fences'] })
       if (
         highlightedFence &&
-        (String(highlightedFence.geo_fence_id) === String(highlightedFence.id))
+        String(highlightedFence.geo_fence_id) === String(highlightedFence.id)
       ) {
         setHighlightedFence(null)
       }
@@ -184,10 +186,14 @@ export default function GeofencingSettings() {
           <ArrowLeft className="size-4" />
         </Button>
         <div className="flex items-center gap-2">
-          <MapPin className="size-4 text-orange-500" />
-          <span className="text-xs font-semibold text-foreground">Geo-fencing Locations</span>
+          <MapPin className="size-4 text-[#6f9ff1]" />
+          <span className="text-xs font-semibold text-foreground">
+            Geo-fencing Locations
+          </span>
           <span className="text-muted-foreground text-xs">•</span>
-          <span className="text-xs text-muted-foreground">{geoFenceData.length} Registered</span>
+          <span className="text-xs text-muted-foreground">
+            {geoFenceData.length} Registered
+          </span>
         </div>
       </div>
 
@@ -199,7 +205,9 @@ export default function GeofencingSettings() {
         <GeofenceListTable
           geofences={geoFenceData}
           loading={isLoading}
-          selectedId={highlightedFence?.geo_fence_id || highlightedFence?.id || null}
+          selectedId={
+            highlightedFence?.geo_fence_id || highlightedFence?.id || null
+          }
           onSelectGeofence={highlightFence}
           onAddClick={handleAddNew}
           onEditClick={handleEdit}

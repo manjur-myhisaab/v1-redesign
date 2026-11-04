@@ -3,7 +3,7 @@ import React, { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Trash2, Save, X, CalendarCheck } from 'lucide-react';
+import { Trash2, Save, X, CalendarCheck, Loader2 } from 'lucide-react';
 import rdk, { createItem, deleteItem, updateItem, readItems } from '@/services/server';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ interface AddAttendanceFormModalProps {
     singleData?: any;
     formType: 'add' | 'edit';
     onClose: () => void;
+    onSuccess?: () => void;
     user?: any;
 }
 
@@ -31,6 +32,7 @@ export default function AddAttendanceFormModal({
     singleData,
     formType,
     onClose,
+    onSuccess,
     user,
 }: AddAttendanceFormModalProps) {
     const queryClient = useQueryClient();
@@ -118,10 +120,15 @@ export default function AddAttendanceFormModal({
                 return await rdk.request(createItem('attendance', payload));
             }
         },
-        onSuccess: () => {
+        onSuccess: async () => {
             toast.success(isEdit ? 'Attendance updated' : 'Attendance marked successfully');
-            queryClient.invalidateQueries({ queryKey: ['user-attendance'] });
-            queryClient.invalidateQueries({ queryKey: ['DailyAttnWithShifts'] });
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['day-attendance-punches'] }),
+                queryClient.invalidateQueries({ queryKey: ['DailyAttnWithShifts'] }),
+                queryClient.invalidateQueries({ queryKey: ['user-attendance'] }),
+                queryClient.invalidateQueries({ queryKey: ['attendance'] }),
+            ]);
+            onSuccess?.();
             onClose();
         },
         onError: (err: any) => {
@@ -134,10 +141,15 @@ export default function AddAttendanceFormModal({
         mutationFn: async () => {
             return await rdk.request(deleteItem('attendance', singleData.attendance_id));
         },
-        onSuccess: () => {
+        onSuccess: async () => {
             toast.success('Attendance record deleted');
-            queryClient.invalidateQueries({ queryKey: ['user-attendance'] });
-            queryClient.invalidateQueries({ queryKey: ['DailyAttnWithShifts'] });
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['day-attendance-punches'] }),
+                queryClient.invalidateQueries({ queryKey: ['DailyAttnWithShifts'] }),
+                queryClient.invalidateQueries({ queryKey: ['user-attendance'] }),
+                queryClient.invalidateQueries({ queryKey: ['attendance'] }),
+            ]);
+            onSuccess?.();
             onClose();
         },
         onError: (err: any) => {
@@ -236,7 +248,7 @@ export default function AddAttendanceFormModal({
                         type="button"
                         variant="destructive"
                         size="sm"
-                        disabled={deleteMutation.isPending}
+                        disabled={deleteMutation.isPending || saveMutation.isPending}
                         onClick={() => {
                             if (window.confirm('Are you sure you want to delete this record?')) {
                                 deleteMutation.mutate();
@@ -244,20 +256,47 @@ export default function AddAttendanceFormModal({
                         }}
                         className="gap-1.5"
                     >
-                        <Trash2 className="size-3.5" />
-                        <span>Delete</span>
+                        {deleteMutation.isPending ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                            <Trash2 className="size-3.5" />
+                        )}
+                        <span>{deleteMutation.isPending ? 'Deleting...' : 'Delete'}</span>
                     </Button>
                 ) : (
                     <div />
                 )}
 
                 <div className="flex items-center gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={onClose}>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={saveMutation.isPending || deleteMutation.isPending}
+                        onClick={onClose}
+                    >
                         Cancel
                     </Button>
-                    <Button type="submit" size="sm" disabled={isSubmitting || saveMutation.isPending} className="gap-1.5">
-                        <Save className="size-3.5" />
-                        <span>{isEdit ? 'Update' : 'Mark Attendance'}</span>
+                    <Button
+                        type="submit"
+                        size="sm"
+                        disabled={isSubmitting || saveMutation.isPending || deleteMutation.isPending}
+                        className="gap-1.5 min-w-[130px]"
+                    >
+                        {saveMutation.isPending ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                            <Save className="size-3.5" />
+                        )}
+                        <span>
+                            {saveMutation.isPending
+                                ? isEdit
+                                    ? 'Updating...'
+                                    : 'Marking...'
+                                : isEdit
+                                ? 'Update'
+                                : 'Mark Attendance'}
+                        </span>
                     </Button>
                 </div>
             </div>

@@ -135,32 +135,42 @@ export function EmployeeAvatar({
     let cfg: AvatarFullConfig | undefined = undefined
     let img: string | null = null
 
-    if (rawAvatar && typeof rawAvatar === 'string') {
-      const trimmed = rawAvatar.trim()
-      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    let rawStr = ''
+    if (typeof rawAvatar === 'object' && rawAvatar !== null) {
+      rawStr = (rawAvatar as any).id || (rawAvatar as any).filename_disk || (rawAvatar as any).url || ''
+    } else if (typeof rawAvatar === 'string') {
+      rawStr = rawAvatar.trim()
+    }
+
+    if (rawStr) {
+      if (rawStr.startsWith('{') && rawStr.endsWith('}')) {
         try {
-          cfg = JSON.parse(trimmed)
+          cfg = JSON.parse(rawStr)
         } catch {
           // not valid json
         }
       }
       if (!cfg) {
         if (
-          trimmed.startsWith('http://') ||
-          trimmed.startsWith('https://') ||
-          trimmed.startsWith('data:') ||
-          trimmed.startsWith('blob:')
+          rawStr.startsWith('http://') ||
+          rawStr.startsWith('https://') ||
+          rawStr.startsWith('data:') ||
+          rawStr.startsWith('blob:')
         ) {
-          img = trimmed
+          if (!rawStr.includes('pixabay.com')) {
+            img = rawStr
+          }
         } else {
-          const cleanId = trimmed.replace(/^.*\/assets\//, '').replace(/^\/?assets\//, '')
+          const cleanId = rawStr.replace(/^.*\/assets\//, '').replace(/^\/?assets\//, '')
           if (cleanId && cleanId.length > 2) {
             const base = (
               import.meta.env.VITE_ATTENDANCE_SERVER_URL ||
               import.meta.env.VITE_API_URL ||
               'https://cozybear.myhisaab.com'
             ).replace(/\/+$/, '')
-            img = `${base}/assets/${cleanId}`
+            const token = localStorage.getItem('authToken') || localStorage.getItem('mh.token')
+            const tokenParam = token ? `?access_token=${encodeURIComponent(token)}` : ''
+            img = `${base}/assets/${cleanId}${tokenParam}`
           }
         }
       }
