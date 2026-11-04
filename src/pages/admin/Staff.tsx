@@ -65,6 +65,7 @@ import { cn } from '@/lib/utils'
 import { formatTime } from '@/lib/timeUtils'
 import { handleBulkAttnUpdate } from '@/lib/bulkAttendance'
 import { CategoryModal } from './components/CategoryModal'
+import PaywallModal from '@/components/PaywallModal'
 
 // --- In-Memory Cache (Persists across page navigation within the same session) ---
 const inMemoryStaffCache: Record<string, any> = {}
@@ -199,6 +200,7 @@ export default function Staff() {
     initialCached ? initialCached.allStaff : [],
   )
   const [allShiftsDetails, setAllShiftsDetails] = useState<any[]>([])
+  const [paywallOpen, setPaywallOpen] = useState(false)
   const [totalPeople, setTotalPeople] = useState<any[]>(() => {
     try {
       const raw = localStorage.getItem('all_users_of_firm')
@@ -1150,7 +1152,25 @@ export default function Staff() {
             {/* Add Employee Button */}
             <Button
               size="sm"
-              onClick={() => navigate('/admin/staff/new')}
+              onClick={() => {
+                const employeeLimit =
+                  storedUserData?.firm_id?.firm_employee_limit ??
+                  (typeof user?.firm_id === 'object'
+                    ? (user?.firm_id as any)?.firm_employee_limit
+                    : null) ??
+                  (user as any)?.firm_employee_limit
+
+                if (
+                  employeeLimit !== undefined &&
+                  employeeLimit !== null &&
+                  totalPeople &&
+                  totalPeople.length >= Number(employeeLimit)
+                ) {
+                  setPaywallOpen(true)
+                } else {
+                  navigate('/admin/staff/new')
+                }
+              }}
               className="h-8 gap-1.5 text-xs font-semibold cursor-pointer shadow-xs"
             >
               <UserPlus className="size-3.5" />
@@ -2469,6 +2489,8 @@ export default function Staff() {
           fetchAllStaffData()
         }}
       />
+
+      <PaywallModal isOpen={paywallOpen} onClose={() => setPaywallOpen(false)} />
     </div>
   )
 }

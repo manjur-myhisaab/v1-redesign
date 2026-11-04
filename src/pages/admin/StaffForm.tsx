@@ -42,6 +42,8 @@ import {
 } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { useShell } from '@/components/admin/shell-context'
+import { useAuth } from '@/context/auth/AuthContext'
+import PaywallModal from '@/components/PaywallModal'
 import { cn } from '@/lib/utils'
 import PersonAvatar from '@/components/admin/PersonAvatar'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -268,9 +270,88 @@ export default function StaffForm() {
   const { id } = useParams<{ id: string }>()
   const isEditMode = Boolean(id)
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const [paywallOpen, setPaywallOpen] = useState(false)
+  const [proPaywallOpen, setProPaywallOpen] = useState(false)
+  const [totalPeople, setTotalPeople] = useState<any[] | null>(null)
   const { firstTabActive } = useShell()
   const [activeTab, setActiveTab] = useState('basic')
   const manageCategoriesAnchor = useComboboxAnchor()
+
+  // Exact V1 Staff Form limits loading
+  useEffect(() => {
+    const loadUsers = async () => {
+      const rawFirm = (user as any)?.firm_id
+      const firmId = typeof rawFirm === 'object' ? rawFirm?.firm_id : rawFirm
+      if (firmId) {
+        try {
+          const response: any = await rdk.request(
+            customEndpoint({
+              path: `users`,
+              method: 'GET',
+              params: {
+                limit: -1,
+                fields: ['id', 'live_tracking'],
+              },
+            })
+          )
+          const usersList = response?.data || response || []
+          setTotalPeople(usersList)
+
+          const employeeLimit =
+            typeof rawFirm === 'object' ? rawFirm?.firm_employee_limit : (user as any)?.firm_employee_limit
+          if (!isEditMode && employeeLimit !== undefined && employeeLimit !== null && usersList.length >= Number(employeeLimit)) {
+            setPaywallOpen(true)
+          }
+        } catch (err) {
+          console.error('Error fetching users:', err)
+          setTotalPeople([])
+        }
+      }
+    }
+    loadUsers()
+  }, [isEditMode, user])
+
+  const handlePaywallClose = () => {
+    setPaywallOpen(false)
+    const rawFirm = (user as any)?.firm_id
+    const employeeLimit =
+      typeof rawFirm === 'object' ? rawFirm?.firm_employee_limit : (user as any)?.firm_employee_limit
+    if (!isEditMode && employeeLimit !== undefined && employeeLimit !== null && totalPeople && totalPeople.length >= Number(employeeLimit)) {
+      navigate(-1)
+    }
+  }
+
+  const handleLiveTrackingChange = (value: boolean, fieldOnChange: (val: boolean) => void) => {
+    if (value === true) {
+      if (!totalPeople) {
+        fieldOnChange(true)
+        return
+      }
+      const rawFirm = (user as any)?.firm_id
+      const proLimit =
+        typeof rawFirm === 'object' ? rawFirm?.firm_pro_employee_limit : (user as any)?.firm_pro_employee_limit
+      const currentProCount = totalPeople.filter(
+        (p: any) => p.live_tracking === true || p.live_tracking === 'true'
+      ).length
+      const isAlreadyProInDB =
+        isEditMode &&
+        Boolean(
+          totalPeople.find((p: any) => String(p.id) === String(id))?.live_tracking === true ||
+            totalPeople.find((p: any) => String(p.id) === String(id))?.live_tracking === 'true'
+        )
+      const newProCount = isAlreadyProInDB ? currentProCount : currentProCount + 1
+
+      if (proLimit !== undefined && proLimit !== null && newProCount > Number(proLimit)) {
+        setProPaywallOpen(true)
+        toast.error('Live tracking limit reached! Please upgrade your plan.')
+      } else {
+        fieldOnChange(true)
+      }
+    } else {
+      fieldOnChange(false)
+    }
+  }
 
   // 1. Exact V1 Single Staff Query
   const { data: staffById, isLoading: isLoadingEmployee } = useQuery({
@@ -586,7 +667,6 @@ export default function StaffForm() {
       is_admin: e.is_admin ?? false,
       payroll_template: e.payroll_template_id ? String(e.payroll_template_id) : 'none',
       payroll_template_id: e.payroll_template_id ? String(e.payroll_template_id) : 'none',
-      inactive_date: e.inactive_date ? parseDateStr(e.inactive_date) : null,
       inactive_date: e.inactive_date ? parseDateStr(e.inactive_date) : null,
     }
 
@@ -1442,6 +1522,15 @@ export default function StaffForm() {
     setSavedFaceImages(prev => prev.filter(f => f.id !== id))
     setFaceImagesDirty(true)
     toast.success('Saved face image removed.')
+  }
+
+  if (paywallOpen) {
+    return (
+      <PaywallModal
+        isOpen={true}
+        onClose={handlePaywallClose}
+      />
+    )
   }
 
   if (isLoadingEmployee) {
@@ -2814,7 +2903,7 @@ export default function StaffForm() {
                           <Switch
                             id="live_tracking"
                             checked={field.value}
-                            onCheckedChange={field.onChange}
+                            onCheckedChange={(checked) => handleLiveTrackingChange(checked, field.onChange)}
                           />
                         )}
                       />
@@ -3704,6 +3793,8 @@ export default function StaffForm() {
         src={lightboxState.src}
         title={lightboxState.title}
       />
+
+      <PaywallModal isOpen={proPaywallOpen} onClose={() => setProPaywallOpen(false)} />
     </form>
   )
 }

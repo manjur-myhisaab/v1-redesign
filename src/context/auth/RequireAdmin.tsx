@@ -4,6 +4,8 @@ import { useAuth } from '@/context/auth/AuthContext'
 import { isRoleAdmin, isRoleManager } from '@/constants/roles'
 import NotFound from '@/pages/NotFound'
 import { Loader2 } from 'lucide-react'
+import PaywallModal from '@/components/PaywallModal'
+import TrialModeWrapper from '@/components/TrialModeWrapper'
 
 /**
  * Route guard that strictly controls access to /admin/* routes:
@@ -24,6 +26,21 @@ export default function RequireAdmin() {
     )
   }
 
+  // Exact V1 Trial Over check: if trial expired, block app access with PaywallModal
+  const rawFirm = (user as any)?.firm_id
+  const subscriptionPlan =
+    (typeof rawFirm === 'object' ? rawFirm?.subscription_plan : null) ||
+    activeWorkspace?.plan ||
+    (user as any)?.subscription_plan
+
+  if (subscriptionPlan === 'trial_over') {
+    return (
+      <TrialModeWrapper>
+        <PaywallModal isOpen={true} showCloseButton={false} />
+      </TrialModeWrapper>
+    )
+  }
+
   // Check if session user has admin/owner privileges from v1 role UUID or workspace
   const userRole = user?.role
   const isDirectAdmin =
@@ -34,8 +51,19 @@ export default function RequireAdmin() {
     String(activeWorkspace?.role || '').toUpperCase() === 'OWNER' ||
     String(activeWorkspace?.role || '').toUpperCase() === 'ADMIN'
 
-  if (isDirectAdmin) {
+  const renderOutlet = () => {
+    if (subscriptionPlan === 'trial') {
+      return (
+        <TrialModeWrapper>
+          <Outlet />
+        </TrialModeWrapper>
+      )
+    }
     return <Outlet />
+  }
+
+  if (isDirectAdmin) {
+    return renderOutlet()
   }
 
   // Managers have access to /admin/staff and /admin/attendance
@@ -47,7 +75,7 @@ export default function RequireAdmin() {
       location.pathname.startsWith('/admin/attendance') ||
       location.pathname.startsWith('/attendance/staff'))
   ) {
-    return <Outlet />
+    return renderOutlet()
   }
 
   // 1. Pure employees are strictly shown 404
@@ -60,5 +88,5 @@ export default function RequireAdmin() {
     return <NotFound />
   }
 
-  return <Outlet />
+  return renderOutlet()
 }

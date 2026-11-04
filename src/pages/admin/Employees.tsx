@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import EmployeesGrid from '@/components/admin/EmployeesGrid'
 import Panel from '@/components/admin/Panel'
 import UpgradeModal from '@/components/admin/UpgradeModal'
+import PaywallModal from '@/components/PaywallModal'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,6 +66,7 @@ export default function Employees() {
 
   // TanStack Queries & Mutations
   const { data: employees = [], isLoading } = useEmployeesQuery()
+  const [paywallOpen, setPaywallOpen] = useState(false)
   const updateMutation = useUpdateEmployeeMutation()
   const deleteMutation = useDeleteEmployeeMutation()
 
@@ -444,7 +446,19 @@ export default function Employees() {
   }
 
   const handleAddRow = () => {
-    navigate('/admin/employees/new')
+    const rawFirm = (user as any)?.firm_id
+    const employeeLimit =
+      typeof rawFirm === 'object' ? rawFirm?.firm_employee_limit : (user as any)?.firm_employee_limit
+    if (
+      employeeLimit !== undefined &&
+      employeeLimit !== null &&
+      employees &&
+      employees.length >= Number(employeeLimit)
+    ) {
+      setPaywallOpen(true)
+    } else {
+      navigate('/admin/employees/new')
+    }
   }
 
   const clearSelection = () => {
@@ -692,6 +706,8 @@ export default function Employees() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <PaywallModal isOpen={paywallOpen} onClose={() => setPaywallOpen(false)} />
     </div>
   )
 }
